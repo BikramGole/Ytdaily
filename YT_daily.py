@@ -1631,98 +1631,30 @@ class YouTubeFeedDownloader:
         })
     
     def process_channel_auto(self, handle: str, display_name: str) -> List[Tuple[Dict[str, Any], str, str]]:
-        """Process a YouTube channel and return new videos since last check WITH LIMITS."""
+        """Queue only the newest video from a channel when it has not been downloaded."""
         download_tasks = []
         
-        # Determine maximum videos to check
-        # Determine maximum videos to check
-        # If it's a known channel, we want to check enough videos to bridge the gap since last run.
-        # Default to a safe number (e.g., 10) to catch up on missed daily videos.
-        check_limit = self.config.gap_check_limit
-        if hasattr(self.config, 'max_videos_per_channel') and self.config.max_videos_per_channel > check_limit:
-            # If user configured a higher manual limit, respect it
-            check_limit = self.config.max_videos_per_channel
-        
-        # Check if channel is new (never downloaded from before)
-        is_new_channel = handle not in self.channel_history.get("channels", {})
-        
-        # Prompt if new channel OR global setting enabled
-        if is_new_channel or self.config.ask_video_limit_per_channel:
-            # Clear previous spinner/output if any
-            console.print("")
-            if is_new_channel:
-                console.print(f"[bold yellow]🆕 New channel detected: {display_name}[/bold yellow]")
-                default_limit = self.config.initial_videos_per_channel
-            else:
-                console.print(f"[bold cyan]🔍 Checking: {display_name}[/bold cyan]")
-                default_limit = check_limit
-                
-            try:
-                if sys.stdin.isatty():
-                    msg = f"   How many recent videos to check? [dim](default {default_limit})[/dim]: "
-                    user_limit = console.input(msg).strip()
-                    if user_limit:
-                        check_limit = int(user_limit)
-                    else:
-                        check_limit = default_limit
-                else:
-                    check_limit = default_limit
-            except ValueError:
-                console.print(f"   [red]Invalid number, using default {default_limit}[/red]")
-                check_limit = default_limit
-            except EOFError:
-                check_limit = default_limit
-
-        
-        fetch_limit = check_limit
-        if is_new_channel or self.config.ask_video_limit_per_channel:
-            fetch_limit = max(check_limit, 20)
-
-        # Get recent videos with the configured limit
+        # Fetch only the newest item. Automatic runs intentionally do not fill a
+        # backlog of videos that appeared while the downloader was not running.
         # Use a spinner for visual feedback
         with console.status(f"[bold blue]🔍 Checking {display_name}...[/bold blue]"):
             recent_videos = self.get_all_recent_videos(
                 f"https://www.youtube.com/@{handle}/videos",
                 display_name,
-                max_videos=fetch_limit,
+                max_videos=1,
                 silent=True
             )
         
         if not recent_videos:
             console.print(f"[dim]🔍 {display_name}: No new videos[/dim]")
             return []
+
+        recent_videos = recent_videos[:1]
         
-        if (is_new_channel or self.config.ask_video_limit_per_channel) and len(recent_videos) > check_limit:
-            videos_to_process = recent_videos[:check_limit]
-            videos_to_mark = recent_videos[check_limit:]
-            
-            for v in videos_to_mark:
-                self.update_channel_history(handle, v)
-                
-            recent_videos = videos_to_process
-            
         new_videos_count = 0
         already_downloaded_count = 0
         shorts_skipped = 0
         
-        # Sort recent videos by date (oldest first) to ensure we download in chronological order
-        # This helps with the "download all remaining video from last download" request
-        # Assuming get_all_recent_videos returns them in some order, but usually API returns newest first.
-        # We process them in the order returned, but for "gap filling" we might want to check all.
-        
-        # Logic to "download all remaining video from last download video":
-        # We need to find the latest downloaded video for this channel.
-        last_downloaded_id = None
-        if handle in self.channel_history.get("channels", {}):
-             downloaded_videos = self.channel_history["channels"][handle].get("downloaded_videos", [])
-             if downloaded_videos:
-                 # Get the one with the most recent timestamp? Or just rely on the ID check?
-                 # The current logic checks `is_video_downloaded` which checks the specific ID.
-                 # If we missed intermediate videos, they won't be in history, so `is_video_downloaded` returns False.
-                 # So simply iterating through `recent_videos` (which fetches 'max_videos') should catch them
-                 # IF 'max_videos' is large enough.
-                 pass
-
         for video_info in recent_videos:
             video_id = video_info["id"]
             
@@ -1778,19 +1710,19 @@ class YouTubeFeedDownloader:
         return download_tasks
 
     def process_playlist_auto(self, playlist_url: str, playlist_name: str) -> List[Tuple[Dict[str, Any], str, str]]:
-        """Process a YouTube playlist and return new videos since last check WITH LIMITS."""
+        """Queue only the newest video from a playlist when it has not been downloaded."""
         download_tasks = []
         
-        # Use the configured maximum videos per channel for playlists too
-        max_videos = self.config.max_videos_per_channel
-        
-        # Get recent videos from playlist - use silent mode
+        # Fetch only the newest playlist entry so automatic runs never queue a
+        # historical playlist backlog.
         with console.status(f"[bold blue]🔍 Checking {playlist_name}...[/bold blue]"):
-            recent_videos = self.get_all_recent_videos(playlist_url, playlist_name, max_videos=max_videos, silent=True)
+            recent_videos = self.get_all_recent_videos(playlist_url, playlist_name, max_videos=1, silent=True)
         
         if not recent_videos:
             console.print(f"[dim]🔍 {playlist_name}: No videos found or error[/dim]")
             return []
+
+        recent_videos = recent_videos[:1]
         
         new_videos_count = 0
         already_downloaded_count = 0
@@ -2031,25 +1963,17 @@ class YouTubeFeedDownloader:
         console.print("")
         
         if self.is_first_run():
-            console.print(f"[bold yellow]📺 First run: Will {'ask for recent videos' if self.config.ask_initial_videos else f'download {self.config.initial_videos_per_channel} recent videos'}[/]")
+            console.print("[bold yellow]📺 First run: Downloading only the newest video from each source[/]")
         else:
-            console.print(f"[bold cyan]📺 Strategy: Downloading NEW videos (filling gaps + newest)[/]")
+            console.print(f"[bold cyan]📺 Strategy: Downloading only the newest video from each source[/]")
         console.print("")
         
         all_download_tasks = []
         
-        # FIRST RUN: Ask for recent videos or use default
+        # FIRST RUN: Download only the newest item from every source.
         if self.is_first_run():
-            if self.config.ask_initial_videos:
-                videos_per_channel = self.get_initial_video_limit()
-            else:
-                videos_per_channel = self.config.initial_videos_per_channel
-            
-            # Only show download message if we're actually going to download something
-            if videos_per_channel > 0:
-                console.print(f"\n[bold]🚀 First run - downloading {videos_per_channel} recent videos per channel...[/bold]\n")
-            else:
-                console.print(f"\n[bold]🚀 First run - skipping initial downloads (limit set to 0)...[/bold]\n")
+            videos_per_channel = 1
+            console.print("\n[bold]🚀 First run - downloading the newest video per source...[/bold]\n")
             
             if self.channels:
                 console.print(Rule("[bold blue]Checking Channels[/]"))
