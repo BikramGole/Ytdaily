@@ -58,8 +58,9 @@ echo -e "${BLUE}📂 Creating directories in $INSTALL_DIR...${NC}"
 mkdir -p "$INSTALL_DIR"
 mkdir -p "$BIN_DIR"
 
-# 4. Copy the script
-echo -e "${BLUE}📄 Copying YT_daily.py...${NC}"
+# 4. Copy the script and package
+echo -e "${BLUE}📄 Copying application files...${NC}"
+cp -r ytdaily "$INSTALL_DIR/"
 cp YT_daily.py "$INSTALL_DIR/YT_daily.py"
 chmod +x "$INSTALL_DIR/YT_daily.py"
 
