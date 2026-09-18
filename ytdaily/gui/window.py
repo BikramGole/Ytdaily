@@ -273,7 +273,7 @@ class DownloadPage(QWidget):
         self.cancel.setEnabled(True)
         self.start_download(url, self.kind.currentIndex() == 1)
 
-    def event(self, data: dict) -> None:
+    def handle_progress(self, data: dict) -> None:
         event_type = data.get("type", "update")
         if event_type == "download":
             percent = float(data.get("percent", 0))
@@ -504,7 +504,7 @@ class MainWindow(QMainWindow):
 
     def start_download(self, url: str, is_audio: bool) -> None:
         worker = DownloadWorker(self.downloader, self.scanner, url, is_audio)
-        worker.progress.connect(self.download.event)
+        worker.progress.connect(self.download.handle_progress)
         self._start_worker(worker, self._download_finished)
 
     def _download_finished(self, success: bool, message: str) -> None:
@@ -517,7 +517,7 @@ class MainWindow(QMainWindow):
     def start_auto_download(self) -> None:
         worker = AutoDownloadWorker(self.config, self.state, self.scanner, self.downloader)
         worker.status.connect(self._auto_status)
-        worker.progress.connect(self.download.event)
+        worker.progress.connect(self.download.handle_progress)
         self.dashboard.run_button.setEnabled(False)
         self._start_worker(worker, self._auto_finished)
 
