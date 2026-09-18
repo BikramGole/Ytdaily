@@ -558,48 +558,41 @@ class Downloader:
                     eta="",
                 )
 
-                while True:
-                    if process.poll() is not None:
-                        break
-                    ready, _, _ = select.select([process.stdout, process.stderr], [], [], 0.1)
-                    for stream in ready:
-                        line = stream.readline()
-                        if not line:
-                            continue
-                        p = self.parse_progress(line)
-                        if p:
-                            if p.get("type") == "playlist_progress":
-                                try:
-                                    current_video_idx = int(p["current"])
-                                    total_videos = int(p["total"])
-                                except ValueError:
-                                    pass
-                                progress.update(
-                                    current_task,
-                                    completed=0,
-                                    description=f"[bold green]Item {current_video_idx}/{total_videos}[/]",
-                                )
-                            elif p.get("type") == "download" and "percent" in p:
-                                try:
-                                    cur_pct = float(p["percent"])
-                                except ValueError:
-                                    cur_pct = 0.0
+                for _, line in self._read_process_output(process):
+                    p = self.parse_progress(line)
+                    if p:
+                        if p.get("type") == "playlist_progress":
+                            try:
+                                current_video_idx = int(p["current"])
+                                total_videos = int(p["total"])
+                            except ValueError:
+                                pass
+                            progress.update(
+                                current_task,
+                                completed=0,
+                                description=f"[bold green]Item {current_video_idx}/{total_videos}[/]",
+                            )
+                        elif p.get("type") == "download" and "percent" in p:
+                            try:
+                                cur_pct = float(p["percent"])
+                            except ValueError:
+                                cur_pct = 0.0
 
-                                overall_pct = ((current_video_idx - 1) / total_videos * 100) + (cur_pct / total_videos)
-                                speed = p.get("speed", "")
-                                eta = p.get("eta", "")
+                            overall_pct = ((current_video_idx - 1) / total_videos * 100) + (cur_pct / total_videos)
+                            speed = p.get("speed", "")
+                            eta = p.get("eta", "")
 
-                                progress.update(
-                                    current_task,
-                                    completed=cur_pct,
-                                    speed=speed,
-                                    eta=eta,
-                                )
-                                progress.update(
-                                    overall_task,
-                                    completed=overall_pct,
-                                    description=f"[bold blue]Overall: Video {current_video_idx}/{total_videos}[/]",
-                                )
+                            progress.update(
+                                current_task,
+                                completed=cur_pct,
+                                speed=speed,
+                                eta=eta,
+                            )
+                            progress.update(
+                                overall_task,
+                                completed=overall_pct,
+                                description=f"[bold blue]Overall: Video {current_video_idx}/{total_videos}[/]",
+                            )
 
             return_code = process.wait()
             has_files = any(playlist_dir.iterdir()) if playlist_dir.exists() else False
