@@ -29,11 +29,27 @@ def main() -> None:
         help="Run auto-download directly without interactive prompt",
     )
     parser.add_argument(
+        "--gui", "-g",
+        action="store_true",
+        help="Start the desktop application (Windows, Linux, and macOS)",
+    )
+    parser.add_argument(
         "--version", "-v",
         action="version",
         version=f"Ytdaily {__version__}",
     )
     args = parser.parse_args()
+
+    if args.gui:
+        try:
+            from ytdaily.gui.main import main as gui_main
+        except ImportError as error:
+            console.print(
+                "[bold red]Desktop GUI dependencies are missing.[/bold red] "
+                "Run [cyan]pip install -r requirements.txt[/cyan] and try again."
+            )
+            raise SystemExit(1) from error
+        raise SystemExit(gui_main())
 
     ok, missing = check_dependencies()
     if not ok:

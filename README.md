@@ -1,7 +1,7 @@
 # 📺 Ytdaily
 [![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)](http://unlicense.org/)
 [![Python 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
-[![Platform: Linux](https://img.shields.io/badge/platform-Linux-orange.svg)](https://www.kernel.org/)
+[![Platform: Windows%20%7C%20Linux%20%7C%20macOS-blue.svg)](https://www.python.org/)
 
 **Ytdaily** is a high-performance, interactive YouTube automation engine designed for creators and enthusiasts. It transforms your local machine into a smart media server that monitors your favorite channels and playlists, downloading content in crystal-clear quality while applying professional-grade filtering and optimization.
 
@@ -83,6 +83,23 @@ systemctl --user status Ytdaily.service
 
 ---
 
+## 🖥️ Desktop GUI and Windows
+
+The new PySide6 desktop application works on Windows, Linux, and macOS. It provides a dashboard, channel and playlist management, one-off MP4/MP3 downloads with live progress and cancellation, history search, configurable folders, and a system-tray menu.
+
+### Windows quick start
+
+1. Install Python 3.9+ and select **Add Python to PATH** during installation.
+2. Clone this repository, then run `install_windows.bat`.
+3. Install [FFmpeg](https://ffmpeg.org/download.html) and ensure `ffmpeg` and `ffprobe` are on `PATH`.
+4. Run `py -m ytdaily.main --gui`.
+
+Windows state and logs are kept in `%LOCALAPPDATA%\Ytdaily`; download folders are configurable in the GUI. To make a portable `.exe` from Windows, run `powershell -ExecutionPolicy Bypass -File scripts\build_windows.ps1`. Every push to `main` also creates a Windows build artifact through GitHub Actions.
+
+On Linux or macOS, after installing the Python requirements, use `python -m ytdaily.main --gui` (or the installed `ytdaily-gui` command).
+
+---
+
 ## ✨ Key Features
 
 - 🎯 **Multi-Quality Support**: Target any resolution from 360p to 4K (2160p).
@@ -96,7 +113,7 @@ systemctl --user status Ytdaily.service
 ## 📜 Technical Stack
 
 - **Logic**: Python 3
-- **UI**: Rich TUI Framework
+- **UI**: Rich terminal UI and PySide6 desktop GUI
 - **Engine**: yt-dlp & FFmpeg
 - **Scheduling**: Systemd User Timers
 - **Package Management**: Native Linux Bridge (Pacman/Apt/Dnf)
