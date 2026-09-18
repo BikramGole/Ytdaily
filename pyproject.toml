@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ytdaily"
+version = "2.0.0"
+description = "Cross-platform YouTube feed downloader"
+requires-python = ">=3.9"
+dependencies = ["rich", "yt-dlp", "PySide6>=6.6", "plyer>=2.1"]
+
+[project.scripts]
+ytdaily = "ytdaily.main:main"
+ytdaily-gui = "ytdaily.gui.main:main"
+
+[tool.setuptools.packages.find]
+include = ["ytdaily*"]

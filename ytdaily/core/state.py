@@ -71,7 +71,12 @@ class StateManager:
                         self.config.base_video_dir = Path(config_data["base_video_dir"])
                     if "base_audio_dir" in config_data and config_data["base_audio_dir"]:
                         self.config.base_audio_dir = Path(config_data["base_audio_dir"])
+                    if "base_playlist_dir" in config_data and config_data["base_playlist_dir"]:
+                        self.config.base_playlist_dir = Path(config_data["base_playlist_dir"])
+                    if "base_podcast_dir" in config_data and config_data["base_podcast_dir"]:
+                        self.config.base_podcast_dir = Path(config_data["base_podcast_dir"])
 
+                    self.config.ensure_directories()
                     self.config.validate()
                 else:
                     self.channels = {}
@@ -103,6 +108,8 @@ class StateManager:
                 "resume_cache_days": self.config.resume_cache_days,
                 "base_video_dir": str(self.config.base_video_dir),
                 "base_audio_dir": str(self.config.base_audio_dir),
+                "base_playlist_dir": str(self.config.base_playlist_dir),
+                "base_podcast_dir": str(self.config.base_podcast_dir),
             }
             with open(self.config.config_path, "w", encoding="utf-8") as f:
                 json.dump(config_data, f, indent=2, ensure_ascii=False)

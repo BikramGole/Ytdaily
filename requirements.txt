@@ -1,2 +1,4 @@
 rich
 yt-dlp
+PySide6>=6.6
+plyer>=2.1

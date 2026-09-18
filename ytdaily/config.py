@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import List, Tuple, Dict, Any
 from ytdaily.utils.browser import detect_browser, SUPPORTED_BROWSERS
 from ytdaily.utils.cache import DirectoryDurationCache
+from ytdaily.utils.paths import application_data_dir
 
 SUPPORTED_RESOLUTIONS: Tuple[str, ...] = ("144", "240", "360", "480", "720", "1080", "1440", "2160")
 
@@ -20,7 +21,7 @@ class Config:
     base_audio_dir: Path = field(default_factory=lambda: Path.home() / "Music" / "YT_music")
     base_playlist_dir: Path = field(default_factory=lambda: Path.home() / "Videos" / "YT_playlist")
     base_podcast_dir: Path = field(default_factory=lambda: Path.home() / "Music" / "YT_podcasts")
-    log_dir: Path = field(default_factory=lambda: Path.home() / ".YT_log")
+    log_dir: Path = field(default_factory=application_data_dir)
 
     # Download settings
     max_resolution: str = "720"
@@ -52,11 +53,7 @@ class Config:
 
     def __post_init__(self):
         """Create base directories and initialize derived paths (defined once)."""
-        self.base_video_dir.mkdir(parents=True, exist_ok=True)
-        self.base_audio_dir.mkdir(parents=True, exist_ok=True)
-        self.base_playlist_dir.mkdir(parents=True, exist_ok=True)
-        self.base_podcast_dir.mkdir(parents=True, exist_ok=True)
-        self.log_dir.mkdir(parents=True, exist_ok=True)
+        self.ensure_directories()
 
         self.download_log_path = self.log_dir / "Download.json"
         self.duration_cache = DirectoryDurationCache(self.log_dir / "directory_durations.json")
@@ -65,6 +62,14 @@ class Config:
         self.app_log_path = self.log_dir / "YT_feed.log"
         self.resume_state_path = self.log_dir / "resume_state.json"
         self.channel_history_path = self.log_dir / "channel_history.json"
+
+    def ensure_directories(self) -> None:
+        """Create configured media and application-data folders when absent."""
+        self.base_video_dir.mkdir(parents=True, exist_ok=True)
+        self.base_audio_dir.mkdir(parents=True, exist_ok=True)
+        self.base_playlist_dir.mkdir(parents=True, exist_ok=True)
+        self.base_podcast_dir.mkdir(parents=True, exist_ok=True)
+        self.log_dir.mkdir(parents=True, exist_ok=True)
 
     @property
     def current_video_dir(self) -> Path:
