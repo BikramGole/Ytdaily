@@ -5,14 +5,15 @@ Download orchestration, parallel execution, and progress management.
 import glob
 import logging
 import os
+import queue
 import re
-import select
 import subprocess
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Callable, Dict, Any, Iterator, List, Optional, Tuple
 
 from rich.panel import Panel
 from rich.progress import Progress, TaskID
@@ -33,6 +34,9 @@ from ytdaily.ui.widgets.progress import (
     create_parallel_progress,
 )
 from ytdaily.utils.notifications import send_notification
+
+
+ProgressCallback = Callable[[Dict[str, Any]], None]
 
 
 class Downloader:
@@ -221,6 +225,9 @@ class Downloader:
         progress: Optional[Progress] = None,
         task_id: Optional[TaskID] = None,
         is_audio: bool = False,
+        progress_callback: Optional[ProgressCallback] = None,
+        cancel_event: Optional[threading.Event] = None,
+        show_console: bool = True,
     ) -> Tuple[bool, str]:
         """Download a single video or audio file with Rich progress tracking and error recovery."""
         video_id = video_info["id"]
@@ -242,7 +249,7 @@ class Downloader:
             resume = True
 
         # If not already running inside an external Progress context, show info Panel
-        if not progress:
+        if not progress and show_console:
             grid = Table.grid(padding=(0, 2))
             grid.add_column(style="bold cyan", justify="right")
             grid.add_column(style="white")
@@ -282,19 +289,22 @@ class Downloader:
                 is_audio=is_audio,
                 progress=progress,
                 task_id=task_id,
+                progress_callback=progress_callback,
+                cancel_event=cancel_event,
+                show_console=show_console,
             )
 
         success, vid_id, error_msg = run_attempt(skip_subs=not has_subtitles, do_resume=resume)
 
         # Retry without subtitles if subtitle 429/error detected
         if not success and has_subtitles and ("subtitles" in error_msg.lower() or "429" in error_msg):
-            if not progress:
+            if not progress and show_console:
                 console.print("   [warning]⚠️ Subtitle error detected, retrying without subtitles...[/warning]")
             success, vid_id, error_msg = run_attempt(skip_subs=True, do_resume=resume)
 
         # Retry clean if HTTP 416 (corrupted cache)
         if not success and "416" in error_msg:
-            if not progress:
+            if not progress and show_console:
                 console.print("   [warning]⚠️ Cache error detected (HTTP 416), retrying clean...[/warning]")
             success, vid_id, _ = run_attempt(skip_subs=True, do_resume=False)
 
@@ -302,17 +312,21 @@ class Downloader:
             if has_subtitles and not is_audio:
                 self.cleanup_subtitle_files(video_title)
 
-            if not progress:
+            if not progress and show_console:
                 console.print("   [bold green]✅ Download complete![/bold green]")
 
             self._save_download_success(video_info, source_name, video_title, is_audio=is_audio)
             self.state.clear_resume_state(download_type, video_id)
+            self._emit_progress(progress_callback, {"type": "completed", "video_id": video_id, "title": video_title})
             return True, video_id
         else:
-            if not progress:
+            if not progress and show_console:
                 console.print("   [bold red]❌ Download failed[/bold red]")
                 if error_msg:
                     console.print(f"   [red]Error: {error_msg[:120]}[/red]")
+            self._emit_progress(progress_callback, {
+                "type": "failed", "video_id": video_id, "title": video_title, "message": error_msg,
+            })
             return False, video_id
 
     def _execute_download(
@@ -323,6 +337,9 @@ class Downloader:
         is_audio: bool = False,
         progress: Optional[Progress] = None,
         task_id: Optional[TaskID] = None,
+        progress_callback: Optional[ProgressCallback] = None,
+        cancel_event: Optional[threading.Event] = None,
+        show_console: bool = True,
     ) -> Tuple[bool, str, str]:
         """Execute download command with Rich progress display (no raw ANSI codes)."""
         video_id = video_info["id"]
@@ -331,7 +348,7 @@ class Downloader:
 
         # If no external progress is passed, create a single Rich Progress widget
         standalone_progress = None
-        if progress is None:
+        if progress is None and show_console:
             standalone_progress = create_single_progress()
             standalone_progress.start()
             task_id = standalone_progress.add_task(f"[cyan]{display_title}[/cyan]", total=100, speed="", eta="")
@@ -353,20 +370,17 @@ class Downloader:
             )
 
             stderr_lines = []
-            while True:
-                if process.poll() is not None:
-                    break
+            lines = self._read_process_output(process, cancel_event)
+            for stream_name, line in lines:
+                if stream_name == "stderr":
+                    stderr_lines.append(line)
 
-                ready, _, _ = select.select([process.stdout, process.stderr], [], [], 0.1)
-                for stream in ready:
-                    line = stream.readline()
-                    if not line:
-                        continue
-                    if stream == process.stderr:
-                        stderr_lines.append(line)
-
-                    progress_dict = self.parse_progress(line)
-                    if progress_dict and active_progress and task_id is not None:
+                progress_dict = self.parse_progress(line)
+                if progress_dict:
+                    progress_dict["video_id"] = video_id
+                    progress_dict["title"] = video_title
+                    self._emit_progress(progress_callback, progress_dict)
+                    if active_progress and task_id is not None:
                         if progress_dict.get("type") == "starting":
                             active_progress.update(task_id, description=f"[yellow]Connecting…[/yellow] {display_title}")
                         elif progress_dict.get("type") == "download" and "percent" in progress_dict:
@@ -374,14 +388,12 @@ class Downloader:
                                 percent = float(progress_dict["percent"])
                             except ValueError:
                                 percent = 0.0
-                            speed = progress_dict.get("speed", "")
-                            eta = progress_dict.get("eta", "")
                             active_progress.update(
                                 task_id,
                                 completed=percent,
                                 description=f"[cyan]{display_title}[/cyan]",
-                                speed=f"{speed}",
-                                eta=f"{eta}",
+                                speed=progress_dict.get("speed", ""),
+                                eta=progress_dict.get("eta", ""),
                                 visible=True,
                             )
                         elif progress_dict.get("type") in ("extract", "converting"):
@@ -408,6 +420,62 @@ class Downloader:
         finally:
             if standalone_progress is not None:
                 standalone_progress.stop()
+
+    @staticmethod
+    def _emit_progress(callback: Optional[ProgressCallback], event: Dict[str, Any]) -> None:
+        """Invoke a UI callback without allowing UI failures to stop a download."""
+        if callback is None:
+            return
+        try:
+            callback(event)
+        except Exception:
+            logging.getLogger("ytdaily").debug("Progress callback failed", exc_info=True)
+
+    def _read_process_output(
+        self,
+        process: subprocess.Popen,
+        cancel_event: Optional[threading.Event] = None,
+    ) -> Iterator[Tuple[str, str]]:
+        """Read stdout/stderr concurrently on Linux and Windows.
+
+        Windows ``select`` only accepts sockets, not subprocess pipes. Dedicated
+        reader threads work on both platforms and also drain the error stream so
+        a noisy downloader cannot deadlock.
+        """
+        output: "queue.Queue[Tuple[str, str]]" = queue.Queue()
+
+        def reader(stream: Any, name: str) -> None:
+            try:
+                for line in iter(stream.readline, ""):
+                    output.put((name, line))
+            finally:
+                stream.close()
+
+        readers = [
+            threading.Thread(target=reader, args=(process.stdout, "stdout"), daemon=True),
+            threading.Thread(target=reader, args=(process.stderr, "stderr"), daemon=True),
+        ]
+        for thread in readers:
+            thread.start()
+
+        started_at = time.monotonic()
+        terminated = False
+        while process.poll() is None or not output.empty():
+            if cancel_event is not None and cancel_event.is_set() and not terminated:
+                process.terminate()
+                terminated = True
+            elif time.monotonic() - started_at > self.config.download_timeout and not terminated:
+                process.terminate()
+                terminated = True
+            try:
+                yield output.get(timeout=0.1)
+            except queue.Empty:
+                continue
+
+        for thread in readers:
+            thread.join(timeout=1)
+        while not output.empty():
+            yield output.get_nowait()
 
     def _save_download_success(
         self,
