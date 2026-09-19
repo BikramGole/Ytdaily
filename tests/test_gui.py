@@ -3,6 +3,7 @@
 import os
 import tempfile
 import unittest
+import logging
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -37,4 +38,7 @@ class TestDesktopGui(unittest.TestCase):
             self.assertEqual(window.pages.count(), 6)
             if window.tray is not None:
                 window.tray.hide()
-            window.deleteLater()
+            for h in logging.getLogger("ytdaily").handlers[:]:
+                h.close()
+                logging.getLogger("ytdaily").removeHandler(h)
+        window.deleteLater()

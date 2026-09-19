@@ -544,4 +544,8 @@ class MainWindow(QMainWindow):
             self.tray.showMessage("Ytdaily", "Ytdaily is still running in the system tray.")
             event.ignore()
             return
+        if self.logger:
+            for handler in self.logger.handlers[:]:
+                handler.close()
+                self.logger.removeHandler(handler)
         event.accept()
