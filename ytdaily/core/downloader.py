@@ -497,8 +497,13 @@ class Downloader:
             "timestamp": datetime.now().isoformat(),
         })
 
-    def download_playlist(self, playlist_url: str, download_type: str = "video") -> Tuple[bool, Optional[Path]]:
-        """Download an entire playlist using a dual Rich Progress widget (no ANSI codes)."""
+    def download_playlist(
+        self,
+        playlist_url: str,
+        download_type: str = "video",
+        playlist_items: Optional[List[int]] = None,
+    ) -> Tuple[bool, Optional[Path]]:
+        """Download all or selected playlist entries using dual Rich progress."""
         try:
             playlist_info = self.scanner.get_playlist_info(playlist_url)
             if not playlist_info:
@@ -507,7 +512,8 @@ class Downloader:
 
             playlist_name = playlist_info["title"]
             uploader = playlist_info["uploader"]
-            total_videos = playlist_info["video_count"] or 1
+            selected_count = len(set(playlist_items)) if playlist_items is not None else 0
+            total_videos = selected_count or playlist_info["video_count"] or 1
 
             # Summary Panel
             info_table = Table.grid(padding=(0, 2))
@@ -515,7 +521,7 @@ class Downloader:
             info_table.add_column(style="white")
             info_table.add_row("📚 Playlist:", playlist_name)
             info_table.add_row("👤 Uploader:", uploader)
-            info_table.add_row("🎬 Total Videos:", str(total_videos))
+            info_table.add_row("🎬 Videos to Download:", str(total_videos))
             info_table.add_row("🎯 Type:", f"{'Audio (MP3)' if download_type == 'audio' else 'Video (MP4)'}")
             console.print(Panel(info_table, title="[bold blue]Starting Playlist Download[/bold blue]", border_style="blue"))
 
@@ -530,6 +536,7 @@ class Downloader:
                 playlist_name,
                 download_type=download_type,
                 resume=True,
+                playlist_items=playlist_items,
             )
             cmd.extend(["--download-archive", str(download_archive)])
 

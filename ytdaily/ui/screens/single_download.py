@@ -11,6 +11,7 @@ from ytdaily.core.downloader import Downloader
 from ytdaily.core.scanner import Scanner
 from ytdaily.theme import console
 from ytdaily.ui.widgets.prompts import ask_string, ask_choice, ask_confirm
+from ytdaily.ui.widgets.playlist_selector import select_playlist_videos
 
 
 def download_single_video_interactive(downloader: Downloader, scanner: Scanner) -> None:
@@ -158,15 +159,36 @@ def download_playlist_interactive(
         )
     )
 
-    console.print("")
-    console.print("🎯 [bold]Select Download Format:[/bold]")
-    console.print(f"   1. 🎬 Video Playlist ({config.max_resolution}p MP4)")
-    console.print("   2. 🎧 Podcast / Audio Playlist (320kbps MP3)")
+    while True:
+        console.print("")
+        console.print("🎯 [bold]Select Download Format:[/bold]")
+        console.print(f"   1. 🎬 Video Playlist ({config.max_resolution}p MP4)")
+        console.print("   2. 🎧 Podcast / Audio Playlist (320kbps MP3)")
 
-    format_choice = ask_choice("Select format (1-2)", choices=["1", "2"])
-    download_type = "video" if format_choice == "1" else "audio"
+        format_choice = ask_choice("Select format (1-2)", choices=["1", "2"])
+        download_type = "video" if format_choice == "1" else "audio"
 
-    success, out_dir = downloader.download_playlist(url, download_type=download_type)
+        video_count = playlist_info.get("video_count", 0)
+        if ask_confirm(f"Download all {video_count or 'available'} playlist videos?", default=True):
+            playlist_items = None
+            break
+
+        with console.status("[bold blue]🔍 Fetching playlist videos for selection...[/bold blue]"):
+            videos = scanner.get_playlist_videos(url, playlist_info.get("title", "Playlist"), video_count)
+        playlist_items = select_playlist_videos(videos)
+        if playlist_items is None:
+            console.print("[dim]Selection cancelled. Returning to format selection.[/dim]")
+            continue
+        if not playlist_items:
+            console.print("[yellow]Select at least one video, or go back to cancel.[/yellow]")
+            continue
+        break
+
+    success, out_dir = downloader.download_playlist(
+        url,
+        download_type=download_type,
+        playlist_items=playlist_items,
+    )
     if success:
         console.print(f"[bold green]✨ Playlist finished downloading to: {out_dir}[/bold green]")
     else:

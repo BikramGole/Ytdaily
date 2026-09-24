@@ -4,7 +4,7 @@ SponsorBlock configuration and yt-dlp command generation.
 
 import re
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 from ytdaily.config import Config
 
 SPONSORBLOCK_CATEGORIES = "sponsor,intro,outro,selfpromo,preview,interaction"
@@ -106,8 +106,9 @@ def build_playlist_download_command(
     playlist_name: str,
     download_type: str = "video",
     resume: bool = False,
+    playlist_items: Optional[List[int]] = None,
 ) -> Tuple[List[str], Path]:
-    """Build the yt-dlp command for downloading entire playlists."""
+    """Build the yt-dlp command for all or selected playlist entries."""
     safe_name = re.sub(r'[<>:"/\\|?*]', '', playlist_name)
 
     if download_type == "audio":
@@ -164,6 +165,12 @@ def build_playlist_download_command(
         cmd.append("--continue")
     else:
         cmd.append("--no-continue")
+
+    if playlist_items is not None:
+        selected_items = sorted({item for item in playlist_items if item > 0})
+        if not selected_items:
+            raise ValueError("At least one playlist item must be selected")
+        cmd.extend(["--playlist-items", ",".join(map(str, selected_items))])
 
     cmd.append(playlist_url)
     playlist_dir.mkdir(parents=True, exist_ok=True)

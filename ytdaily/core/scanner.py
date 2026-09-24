@@ -26,7 +26,7 @@ class Scanner:
         self,
         url: str,
         source_name: str,
-        max_videos: int = 100,
+        max_videos: Optional[int] = 100,
         silent: bool = False,
     ) -> List[Dict[str, Any]]:
         """Get recent videos from a channel or playlist URL."""
@@ -36,12 +36,13 @@ class Scanner:
                 cmd = [
                     "yt-dlp",
                     "--flat-playlist",
-                    "--playlist-items", f"1-{max_videos}",
                     "--dump-json",
                     "--no-warnings",
                     *self.config.get_cookie_args(),
                     url,
                 ]
+                if max_videos is not None:
+                    cmd[2:2] = ["--playlist-items", f"1-{max_videos}"]
 
                 result = subprocess.run(
                     cmd,
@@ -52,7 +53,7 @@ class Scanner:
                 )
 
                 if result.stdout.strip():
-                    for line in result.stdout.strip().split("\n"):
+                    for position, line in enumerate(result.stdout.strip().split("\n"), start=1):
                         if not line.strip():
                             continue
                         try:
@@ -74,6 +75,7 @@ class Scanner:
                                 "uploader": uploader,
                                 "duration": duration,
                                 "duration_formatted": format_duration(duration),
+                                "playlist_index": data.get("playlist_index") or position,
                             })
                         except json.JSONDecodeError:
                             continue
@@ -108,14 +110,17 @@ class Scanner:
         self,
         url: str,
         source_name: str,
-        limit: int,
+        limit: Optional[int],
         silent: bool = False,
     ) -> List[Dict[str, Any]]:
         """Fallback query when flat playlist fails."""
         try:
             self.logger.info(f"🔄 Trying fallback query for {source_name}")
             videos = []
-            max_videos = limit if self.state.is_first_run() else min(limit, 50)
+            # A full flat-playlist query can fail without reporting its length. Keep
+            # the legacy fallback bounded in that uncommon case.
+            fallback_limit = limit if limit is not None else 100
+            max_videos = fallback_limit if self.state.is_first_run() else min(fallback_limit, 50)
             for i in range(1, max_videos + 1):
                 try:
                     cmd = [
@@ -153,6 +158,7 @@ class Scanner:
                                 "uploader": uploader,
                                 "duration": duration,
                                 "duration_formatted": format_duration(duration),
+                                "playlist_index": i,
                             })
                 except Exception as e:
                     self.logger.warning(f"⚠️ Fallback video {i} failed for {source_name}: {e}")
@@ -244,6 +250,20 @@ class Scanner:
         except Exception as e:
             self.logger.error(f"❌ Error getting playlist info: {e}")
         return None
+
+    def get_playlist_videos(
+        self,
+        playlist_url: str,
+        playlist_name: str,
+        video_count: int = 0,
+    ) -> List[Dict[str, Any]]:
+        """Fetch all available entries for interactive playlist selection."""
+        return self.get_all_recent_videos(
+            playlist_url,
+            playlist_name,
+            max_videos=video_count or None,
+            silent=True,
+        )
 
     def check_subtitles_available(self, video_url: str) -> bool:
         """Check if subtitles are available to avoid 429 errors."""

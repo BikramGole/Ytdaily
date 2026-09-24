@@ -22,6 +22,7 @@ from ytdaily.ui.widgets.tables import (
     create_history_table,
     create_status_bar,
 )
+from ytdaily.ui.widgets.playlist_selector import selected_playlist_indices
 from ytdaily.utils.browser import detect_browser, SUPPORTED_BROWSERS
 from ytdaily.utils.cache import (
     format_duration,
@@ -136,6 +137,22 @@ class TestYtdailyCore(unittest.TestCase):
         self.assertIn("--audio-format", audio_cmd)
         self.assertIn("mp3", audio_cmd)
         self.assertIn("--no-continue", audio_cmd)
+
+        playlist_cmd, _ = build_playlist_download_command(
+            self.config,
+            "https://youtube.com/playlist?list=12345",
+            "Test Playlist",
+            playlist_items=[3, 1, 3],
+        )
+        selected_index = playlist_cmd.index("--playlist-items")
+        self.assertEqual(playlist_cmd[selected_index + 1], "1,3")
+
+    def test_playlist_selection_uses_playlist_positions(self):
+        videos = [
+            {"title": "One", "playlist_index": 1},
+            {"title": "Three", "playlist_index": 3},
+        ]
+        self.assertEqual(selected_playlist_indices(videos, {2}), [3])
 
     def test_downloader_progress_parser(self):
         scanner = Scanner(self.config, self.state)
