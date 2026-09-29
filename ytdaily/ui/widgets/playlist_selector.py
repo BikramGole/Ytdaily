@@ -23,6 +23,11 @@ def selected_playlist_indices(videos: Sequence[dict[str, Any]], selected: Set[in
     ]
 
 
+def all_playlist_row_indices(videos: Sequence[dict[str, Any]]) -> Set[int]:
+    """Return every one-based selector row index for ``videos``."""
+    return set(range(1, len(videos) + 1))
+
+
 @contextmanager
 def _raw_keyboard() -> Iterator[None]:
     """Read one key at a time without adding a third-party TUI dependency."""
@@ -91,7 +96,7 @@ def _selector_view(videos: Sequence[dict[str, Any]], selected: Set[int], cursor:
     instructions = (
         f"[bold]{len(selected)} of {len(videos)} selected.[/] "
         "[cyan]↑/↓[/] move · [cyan]Space/Tab[/] toggle · [cyan]Enter[/] confirm · "
-        "[cyan]Esc/Backspace[/] go back"
+        "[cyan]A[/] all · [cyan]N[/] none · [cyan]Esc/Backspace[/] go back"
         f"[dim]{suffix}[/dim]"
     )
     return Panel(table, title="[bold blue]Choose playlist videos[/bold blue]", subtitle=instructions, border_style="blue")
@@ -106,7 +111,10 @@ def select_playlist_videos(videos: Sequence[dict[str, Any]]) -> Optional[List[in
         console.print("[yellow]Interactive selection requires a terminal. No videos selected.[/yellow]")
         return []
 
-    selected = set(range(1, len(videos) + 1))
+    # Begin with every item selected: after answering "No" to downloading all,
+    # users can immediately remove unwanted videos. A/N also make it quick to
+    # switch between an exclusion list and an explicit inclusion list.
+    selected = all_playlist_row_indices(videos)
     cursor = 0
     with _raw_keyboard(), Live(_selector_view(videos, selected, cursor), console=console, refresh_per_second=20) as live:
         while True:
@@ -121,6 +129,10 @@ def select_playlist_videos(videos: Sequence[dict[str, Any]]) -> Optional[List[in
                     selected.remove(position)
                 else:
                     selected.add(position)
+            elif key in {"a", "A"}:
+                selected = all_playlist_row_indices(videos)
+            elif key in {"n", "N"}:
+                selected.clear()
             elif key == "enter":
                 return selected_playlist_indices(videos, selected)
             elif key in {"escape", "backspace", "q", "Q"}:
