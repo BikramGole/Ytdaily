@@ -201,8 +201,10 @@ class TestYtdailyCore(unittest.TestCase):
 
     def test_system_and_browser(self):
         ok, missing = check_dependencies()
-        self.assertTrue(ok)
-        self.assertEqual(len(missing), 0)
+        self.assertTrue(
+            ok,
+            f"Missing external dependencies: {', '.join(missing)}",
+        )
 
         disk_info = get_disk_space_info(self.test_root)
         self.assertIn("total_gb", disk_info)
