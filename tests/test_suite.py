@@ -22,7 +22,10 @@ from ytdaily.ui.widgets.tables import (
     create_history_table,
     create_status_bar,
 )
-from ytdaily.ui.widgets.playlist_selector import selected_playlist_indices
+from ytdaily.ui.widgets.playlist_selector import (
+    all_playlist_row_indices,
+    selected_playlist_indices,
+)
 from ytdaily.utils.browser import detect_browser, SUPPORTED_BROWSERS
 from ytdaily.utils.cache import (
     format_duration,
@@ -152,6 +155,19 @@ class TestYtdailyCore(unittest.TestCase):
             {"title": "One", "playlist_index": 1},
             {"title": "Three", "playlist_index": 3},
         ]
+        self.assertEqual(selected_playlist_indices(videos, {2}), [3])
+
+    def test_playlist_selector_all_rows_supports_include_or_exclude_workflows(self):
+        videos = [
+            {"title": "One", "playlist_index": 1},
+            {"title": "Three", "playlist_index": 3},
+            {"title": "Four", "playlist_index": 4},
+        ]
+        all_rows = all_playlist_row_indices(videos)
+
+        # "All" gives an exclusion workflow; clearing it supports explicit inclusion.
+        self.assertEqual(all_rows, {1, 2, 3})
+        self.assertEqual(selected_playlist_indices(videos, all_rows - {2}), [1, 4])
         self.assertEqual(selected_playlist_indices(videos, {2}), [3])
 
     def test_downloader_progress_parser(self):
