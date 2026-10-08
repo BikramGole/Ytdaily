@@ -111,10 +111,9 @@ def select_playlist_videos(videos: Sequence[dict[str, Any]]) -> Optional[List[in
         console.print("[yellow]Interactive selection requires a terminal. No videos selected.[/yellow]")
         return []
 
-    # Begin with every item selected: after answering "No" to downloading all,
-    # users can immediately remove unwanted videos. A/N also make it quick to
-    # switch between an exclusion list and an explicit inclusion list.
-    selected = all_playlist_row_indices(videos)
+    # Start with nothing selected so confirming the screen cannot accidentally
+    # download an entire playlist. Press A to select every entry when wanted.
+    selected: Set[int] = set()
     cursor = 0
     with _raw_keyboard(), Live(_selector_view(videos, selected, cursor), console=console, refresh_per_second=20) as live:
         while True:
