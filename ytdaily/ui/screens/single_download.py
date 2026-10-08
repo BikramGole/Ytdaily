@@ -168,13 +168,12 @@ def download_playlist_interactive(
         format_choice = ask_choice("Select format (1-2)", choices=["1", "2"])
         download_type = "video" if format_choice == "1" else "audio"
 
-        video_count = playlist_info.get("video_count", 0)
-        if ask_confirm(f"Download all {video_count or 'available'} playlist videos?", default=True):
-            playlist_items = None
-            break
-
         with console.status("[bold blue]🔍 Fetching playlist videos for selection...[/bold blue]"):
-            videos = scanner.get_playlist_videos(url, playlist_info.get("title", "Playlist"), video_count)
+            videos = scanner.get_playlist_videos(
+                url,
+                playlist_info.get("title", "Playlist"),
+                playlist_info.get("video_count", 0),
+            )
         playlist_items = select_playlist_videos(videos)
         if playlist_items is None:
             console.print("[dim]Selection cancelled. Returning to format selection.[/dim]")
