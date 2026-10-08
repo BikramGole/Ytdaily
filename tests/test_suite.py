@@ -6,6 +6,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from ytdaily.config import Config
 from ytdaily.core.downloader import Downloader
@@ -26,6 +27,7 @@ from ytdaily.ui.widgets.playlist_selector import (
     all_playlist_row_indices,
     selected_playlist_indices,
 )
+from ytdaily.ui.screens.single_download import download_playlist_interactive
 from ytdaily.utils.browser import detect_browser, SUPPORTED_BROWSERS
 from ytdaily.utils.cache import (
     format_duration,
@@ -169,6 +171,39 @@ class TestYtdailyCore(unittest.TestCase):
         self.assertEqual(all_rows, {1, 2, 3})
         self.assertEqual(selected_playlist_indices(videos, all_rows - {2}), [1, 4])
         self.assertEqual(selected_playlist_indices(videos, {2}), [3])
+
+    def test_interactive_playlist_uses_the_selector_before_downloading(self):
+        class PlaylistScanner:
+            def get_playlist_info(self, url):
+                return {"title": "Sample playlist", "uploader": "Creator", "video_count": 3}
+
+            def get_playlist_videos(self, url, name, video_count):
+                self.request = (url, name, video_count)
+                return [
+                    {"title": "One", "playlist_index": 1},
+                    {"title": "Two", "playlist_index": 2},
+                    {"title": "Three", "playlist_index": 3},
+                ]
+
+        class PlaylistDownloader:
+            def download_playlist(self, url, download_type, playlist_items):
+                self.request = (url, download_type, playlist_items)
+                return True, Path("/tmp/playlist")
+
+        scanner = PlaylistScanner()
+        downloader = PlaylistDownloader()
+        url = "https://www.youtube.com/playlist?list=example"
+        with (
+            patch("ytdaily.ui.screens.single_download.ask_string", side_effect=[url, ""]),
+            patch("ytdaily.ui.screens.single_download.ask_choice", return_value="1"),
+            patch("ytdaily.ui.screens.single_download.ask_confirm") as confirm,
+            patch("ytdaily.ui.screens.single_download.select_playlist_videos", return_value=[1, 3]),
+        ):
+            download_playlist_interactive(downloader, scanner, self.config)
+
+        self.assertEqual(scanner.request, (url, "Sample playlist", 3))
+        self.assertEqual(downloader.request, (url, "video", [1, 3]))
+        confirm.assert_not_called()
 
     def test_downloader_progress_parser(self):
         scanner = Scanner(self.config, self.state)
