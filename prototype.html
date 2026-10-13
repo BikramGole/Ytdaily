@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="catppuccin-mocha">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YTDaily // Multi-Theme Desktop Engine</title>
+  
+  <!-- Typography & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Google+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Roboto:wght@400;500;700&family=Segoe+UI:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    /* ==========================================================================
+       THEME SYSTEM SPECIFICATIONS & TOKENS
+       ========================================================================== */
+
+    /* 1. CATPPUCCIN MOCHA (DARK) */
+    [data-theme="catppuccin-mocha"] {
+      --bg-crust: #11111b;
+      --bg-mantle: #181825;
+      --bg-base: #1e1e2e;
+      --bg-surface-low: #181825;
+      --bg-surface: #1e1e2e;
+      --bg-surface-high: #313244;
+      --bg-surface-highest: #45475a;
+      --text-main: #cdd6f4;
+      --text-muted: #a6adc8;
+      --text-dim: #6c7086;
+      --accent: #cba6f7; /* Mauve */
+      --accent-on: #11111b;
+      --accent-container: rgba(203, 166, 247, 0.15);
+      --success: #a6e3a1;
+      --warning: #fab387;
+      --error: #f38ba8;
+      --border: #45475a;
+      --border-subtle: #313244;
+      --radius-sm: 8px;
+      --radius-md: 16px;
+      --radius-lg: 28px;
+      --font-family: 'Google Sans', 'Roboto', sans-serif;
+    }
+
+    /* 2. CATPPUCCIN LATTE (LIGHT) */
+    [data-theme="catppuccin-latte"] {
+      --bg-crust: #dce0e8;
+      --bg-mantle: #e6e9ef;
+      --bg-base: #eff1f5;
+      --bg-surface-low: #e6e9ef;
+      --bg-surface: #ffffff;
+      --bg-surface-high: #ccd0da;
+      --bg-surface-highest: #bcc0cc;
+      --text-main: #4c4f69;
+      --text-muted: #6c6f85;
+      --text-dim: #9ca0b0;
+      --accent: #8839ef; /* Mauve Light */
+      --accent-on: #ffffff;
+      --accent-container: rgba(136, 57, 239, 0.12);
+      --success: #40a02b;
+      --warning: #df8e1d;
+      --error: #d20f39;
+      --border: #ccd0da;
+      --border-subtle: #e6e9ef;
+      --radius-sm: 8px;
+      --radius-md: 16px;
+      --radius-lg: 28px;
+      --font-family: 'Google Sans', 'Roboto', sans-serif;
+    }
+
+    /* 3. MATERIAL UI M3 (DARK EXPRESSIVE) */
+    [data-theme="material-ui"] {
+      --bg-crust: #131314;
+      --bg-mantle: #1e1f20;
+      --bg-base: #131314;
+      --bg-surface-low: #1e1f20;
+      --bg-surface: #282a2c;
+      --bg-surface-high: #37393e;
+      --bg-surface-highest: #444746;
+      --text-main: #e3e2e6;
+      --text-muted: #c4c6d0;
+      --text-dim: #8e9099;
+      --accent: #a8c7fa; /* M3 Expressive Blue */
+      --accent-on: #003062;
+      --accent-container: rgba(168, 199, 250, 0.2);
+      --success: #6dd58c;
+      --warning: #f2c94c;
+      --error: #f2b8b5;
+      --border: #444746;
+      --border-subtle: #282a2c;
+      --radius-sm: 12px;
+      --radius-md: 20px;
+      --radius-lg: 32px;
+      --font-family: 'Roboto', 'Google Sans', sans-serif;
+    }
+
+    /* 4. WINDOWS 11/12 FLUENT DESIGN */
+    [data-theme="windows-11"] {
+      --bg-crust: #202020;
+      --bg-mantle: #272727;
+      --bg-base: #202020;
+      --bg-surface-low: #272727;
+      --bg-surface: #2d2d2d;
+      --bg-surface-high: #383838;
+      --bg-surface-highest: #444444;
+      --text-main: #ffffff;
+      --text-muted: #cccccc;
+      --text-dim: #888888;
+      --accent: #60cdff; /* Windows Accent Blue */
+      --accent-on: #000000;
+      --accent-container: rgba(96, 205, 255, 0.15);
+      --success: #6ccb5f;
+      --warning: #fce100;
+      --error: #ff99a4;
+      --border: rgba(255, 255, 255, 0.09);
+      --border-subtle: rgba(0, 0, 0, 0.2);
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --font-family: 'Segoe UI', sans-serif;
+    }
+
+    /* 5. MONOKAI PRO */
+    [data-theme="monokai"] {
+      --bg-crust: #19181a;
+      --bg-mantle: #222125;
+      --bg-base: #2d2a2e;
+      --bg-surface-low: #222125;
+      --bg-surface: #363437;
+      --bg-surface-high: #4a474a;
+      --bg-surface-highest: #5b585c;
+      --text-main: #fcfcfa;
+      --text-muted: #c1c0c0;
+      --text-dim: #727072;
+      --accent: #ffd866; /* Monokai Gold */
+      --accent-on: #19181a;
+      --accent-container: rgba(255, 216, 102, 0.15);
+      --success: #a9dc76;
+      --warning: #fc9867;
+      --error: #ff6188;
+      --border: #4a474a;
+      --border-subtle: #363437;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    /* ==========================================================================
+       GLOBAL LAYOUT & DYNAMIC STYLES
+       ========================================================================== */
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: var(--font-family);
+      -webkit-font-smoothing: antialiased;
+      transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    body {
+      background-color: var(--bg-crust);
+      color: var(--text-main);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* TOP APP BAR */
+    .top-app-bar {
+      height: 64px;
+      background-color: var(--bg-crust);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      gap: 20px;
+      flex-shrink: 0;
+      z-index: 10;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .brand-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .brand-logo-icon {
+      width: 38px;
+      height: 38px;
+      background-color: var(--accent-container);
+      color: var(--accent);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+    }
+
+    .search-bar-container {
+      flex: 1;
+      max-width: 500px;
+      height: 44px;
+      background-color: var(--bg-surface);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 12px;
+      border: 1px solid var(--border);
+    }
+
+    .search-bar-container input {
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text-main);
+      font-size: 14px;
+      width: 100%;
+    }
+
+    .search-bar-container input::placeholder { color: var(--text-dim); }
+
+    /* THEME SELECTOR DROPDOWN IN TOP BAR */
+    .theme-selector-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 6px 14px;
+    }
+
+    .theme-selector-box label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .theme-selector-box select {
+      background: transparent;
+      border: none;
+      color: var(--text-main);
+      font-size: 13px;
+      font-weight: 600;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .theme-selector-box select option {
+      background-color: var(--bg-surface-high);
+      color: var(--text-main);
+    }
+
+    /* MAIN BODY LAYOUT */
+    .app-body {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      z-index: 1;
+    }
+
+    /* DRAWER NAV */
+    .navigation-drawer {
+      width: 260px;
+      background-color: var(--bg-crust);
+      padding: 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .drawer-item {
+      height: 48px;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 0 20px;
+      color: var(--text-muted);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      user-select: none;
+      border: 1px solid transparent;
+    }
+
+    .drawer-item:hover {
+      background-color: var(--bg-surface);
+      color: var(--text-main);
+    }
+
+    .drawer-item.active {
+      background-color: var(--accent-container);
+      color: var(--accent);
+      font-weight: 700;
+      border-color: var(--border);
+    }
+
+    /* WORKSPACE VIEW */
+    .workspace-view {
+      flex: 1;
+      background-color: var(--bg-base);
+      border-top-left-radius: var(--radius-lg);
+      border-left: 1px solid var(--border);
+      border-top: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 32px 40px;
+    }
+
+    .page {
+      display: none;
+      animation: fadeIn 0.2s cubic-bezier(0, 0, 0.2, 1) forwards;
+    }
+
+    .page.active { display: block; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .headline-large {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 4px;
+    }
+
+    .body-medium {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 28px;
+    }
+
+    /* CARDS & METRICS */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .ui-card {
+      background-color: var(--bg-surface);
+      border-radius: var(--radius-md);
+      padding: 20px 24px;
+      border: 1px solid var(--border);
+    }
+
+    .card-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 8px;
+    }
+
+    .card-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    /* BUTTONS */
+    .action-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+    }
+
+    .ui-btn {
+      height: 42px;
+      padding: 0 20px;
+      border-radius: var(--radius-md);
+      font-size: 14px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid transparent;
+      cursor: pointer;
+    }
+
+    .ui-btn-filled {
+      background-color: var(--accent);
+      color: var(--accent-on);
+      font-weight: 700;
+    }
+
+    .ui-btn-filled:hover { opacity: 0.9; }
+
+    .ui-btn-tonal {
+      background-color: var(--bg-surface-high);
+      color: var(--text-main);
+      border-color: var(--border);
+    }
+
+    .ui-btn-tonal:hover { background-color: var(--bg-surface-highest); }
+
+    /* LIST ITEMS */
+    .ui-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .ui-list-item {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .item-thumbnail {
+      width: 80px;
+      height: 48px;
+      background-color: var(--bg-surface-high);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .item-details { flex: 1; }
+    .item-title { font-size: 15px; font-weight: 600; color: var(--text-main); margin-bottom: 4px; }
+    .item-sub { font-size: 13px; color: var(--text-muted); }
+
+    /* BADGES */
+    .ui-badge {
+      padding: 4px 10px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .badge-success { background-color: rgba(166, 227, 161, 0.15); color: var(--success); border: 1px solid var(--success); }
+    .badge-pending { background-color: rgba(250, 179, 135, 0.15); color: var(--warning); border: 1px solid var(--warning); }
+
+    /* CODE TERMINAL */
+    .terminal-box {
+      background-color: var(--bg-crust);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--success);
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+
+    /* THEME CARD GRID ON SETTINGS PAGE */
+    .theme-card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .theme-preview-card {
+      background-color: var(--bg-surface);
+      border: 2px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      transition: all 0.2s ease;
+    }
+
+    .theme-preview-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .theme-preview-card.selected { border-color: var(--accent); background-color: var(--accent-container); }
+
+    .theme-swatch-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .swatch {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- TOP APP BAR -->
+  <header class="top-app-bar">
+    <div class="brand-title" onclick="navigate('dashboard')">
+      <div class="brand-logo-icon"><i data-lucide="play-square"></i></div>
+      <span>YTDaily</span>
+    </div>
+
+    <div class="search-bar-container">
+      <i data-lucide="search" style="color:var(--text-dim); width:18px;"></i>
+      <input type="text" placeholder="Search targets, channels, or downloaded media..." id="searchInput">
+    </div>
+
+    <div style="display:flex; align-items:center; gap:16px;">
+      <!-- TOP BAR THEME SWITCHER -->
+      <div class="theme-selector-box">
+        <label><i data-lucide="palette" style="width:14px;"></i> Theme</label>
+        <select id="themeSelect" onchange="switchTheme(this.value)">
+          <option value="catppuccin-mocha">Catppuccin Mocha</option>
+          <option value="catppuccin-latte">Catppuccin Latte</option>
+          <option value="material-ui">Material UI M3</option>
+          <option value="windows-11">Windows 11 Fluent</option>
+          <option value="monokai">Monokai Pro</option>
+        </select>
+      </div>
+
+      <button class="ui-btn ui-btn-tonal" style="width:40px; height:40px; padding:0; justify-content:center; border-radius:50%;" title="Daemon Running">
+        <i data-lucide="activity" style="color:var(--success); width:18px;"></i>
+      </button>
+    </div>
+  </header>
+
+  <div class="app-body">
+    <!-- NAVIGATION DRAWER -->
+    <nav class="navigation-drawer">
+      <div class="drawer-item active" data-page="dashboard" onclick="navigate('dashboard')">
+        <i data-lucide="layout-dashboard"></i><span>Dashboard</span>
+      </div>
+      <div class="drawer-item" data-page="videos" onclick="navigate('videos')">
+        <i data-lucide="film"></i><span>Media Library</span>
+      </div>
+      <div class="drawer-item" data-page="settings" onclick="navigate('settings')">
+        <i data-lucide="palette"></i><span>Themes & Engine</span>
+      </div>
+    </nav>
+
+    <!-- WORKSPACE VIEW -->
+    <main class="workspace-view">
+      
+      <!-- DASHBOARD PAGE -->
+      <div class="page active" id="page-dashboard">
+        <h1 class="headline-large">Dashboard Overview</h1>
+        <p class="body-medium">Automated YouTube feed monitoring and extraction pipeline.</p>
+
+        <div class="metrics-grid">
+          <div class="ui-card">
+            <div class="card-label">Downloaded Today</div>
+            <div class="card-value">2 Videos</div>
+          </div>
+          <div class="ui-card">
+            <div class="card-label">Active Queue</div>
+            <div class="card-value">2 Tasks</div>
+          </div>
+          <div class="ui-card">
+            <div class="card-label">Storage Allocated</div>
+            <div class="card-value">14.2 GB</div>
+          </div>
+        </div>
+
+        <div class="action-row">
+          <button class="ui-btn ui-btn-filled"><i data-lucide="plus"></i> Inject Video Target</button>
+          <button class="ui-btn ui-btn-tonal"><i data-lucide="refresh-cw"></i> Sync Channels</button>
+        </div>
+
+        <h2 style="font-size:18px; margin-bottom:16px; color:var(--text-main);">Recent Downloads</h2>
+        <div class="ui-list">
+          <div class="ui-list-item">
+            <div class="item-thumbnail"><i data-lucide="video"></i></div>
+            <div class="item-details">
+              <div class="item-title">The Complete Guide to Rust in 2026</div>
+              <div class="item-sub">Fireship • 20:45</div>
+            </div>
+            <span class="ui-badge badge-success">Completed</span>
+          </div>
+          <div class="ui-list-item">
+            <div class="item-thumbnail"><i data-lucide="video"></i></div>
+            <div class="item-details">
+              <div class="item-title">Why Linux Is Actually Better Than macOS</div>
+              <div class="item-sub">NetworkChuck • 16:00</div>
+            </div>
+            <span class="ui-badge badge-pending">Downloading</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- MEDIA LIBRARY PAGE -->
+      <div class="page" id="page-videos">
+        <h1 class="headline-large">Media Library</h1>
+        <p class="body-medium">Indexed assets across all target channels.</p>
+        <div class="ui-list">
+          <div class="ui-list-item">
+            <div class="item-thumbnail"><i data-lucide="video"></i></div>
+            <div class="item-details">
+              <div class="item-title">I Rewrote My Entire App in Zig</div>
+              <div class="item-sub">Low Level Learning • 30:30</div>
+            </div>
+            <span class="ui-badge badge-success">Completed</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- THEMES & SETTINGS PAGE -->
+      <div class="page" id="page-settings">
+        <h1 class="headline-large">Appearance & Themes</h1>
+        <p class="body-medium">Choose from pre-configured desktop design languages.</p>
+
+        <div class="theme-card-grid">
+          <!-- CATPPUCCIN MOCHA -->
+          <div class="theme-preview-card" onclick="switchTheme('catppuccin-mocha')">
+            <div style="font-weight:700;">Catppuccin Mocha</div>
+            <div class="theme-swatch-row">
+              <div class="swatch" style="background:#1e1e2e;"></div>
+              <div class="swatch" style="background:#cba6f7;"></div>
+              <div class="swatch" style="background:#a6e3a1;"></div>
+            </div>
+          </div>
+
+          <!-- CATPPUCCIN LATTE -->
+          <div class="theme-preview-card" onclick="switchTheme('catppuccin-latte')">
+            <div style="font-weight:700;">Catppuccin Latte</div>
+            <div class="theme-swatch-row">
+              <div class="swatch" style="background:#eff1f5;"></div>
+              <div class="swatch" style="background:#8839ef;"></div>
+              <div class="swatch" style="background:#40a02b;"></div>
+            </div>
+          </div>
+
+          <!-- MATERIAL UI -->
+          <div class="theme-preview-card" onclick="switchTheme('material-ui')">
+            <div style="font-weight:700;">Material UI M3</div>
+            <div class="theme-swatch-row">
+              <div class="swatch" style="background:#131314;"></div>
+              <div class="swatch" style="background:#a8c7fa;"></div>
+              <div class="swatch" style="background:#6dd58c;"></div>
+            </div>
+          </div>
+
+          <!-- WINDOWS 11 -->
+          <div class="theme-preview-card" onclick="switchTheme('windows-11')">
+            <div style="font-weight:700;">Windows 11 Fluent</div>
+            <div class="theme-swatch-row">
+              <div class="swatch" style="background:#202020;"></div>
+              <div class="swatch" style="background:#60cdff;"></div>
+              <div class="swatch" style="background:#6ccb5f;"></div>
+            </div>
+          </div>
+
+          <!-- MONOKAI -->
+          <div class="theme-preview-card" onclick="switchTheme('monokai')">
+            <div style="font-weight:700;">Monokai Pro</div>
+            <div class="theme-swatch-row">
+              <div class="swatch" style="background:#2d2a2e;"></div>
+              <div class="swatch" style="background:#ffd866;"></div>
+              <div class="swatch" style="background:#ff6188;"></div>
+            </div>
+          </div>
+        </div>
+
+        <h2 style="font-size:18px; margin:32px 0 16px; color:var(--text-main);">Engine Parameters</h2>
+        <div class="terminal-box">yt-dlp --format "bestvideo[height<=1080]+bestaudio/best" --merge-output-format mp4</div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    // === NAVIGATION ENGINE ===
+    function navigate(page) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.drawer-item').forEach(d => d.classList.remove('active'));
+
+      document.getElementById('page-' + page).classList.add('active');
+      const targetDrawer = document.querySelector(`.drawer-item[data-page="${page}"]`);
+      if (targetDrawer) targetDrawer.classList.add('active');
+    }
+
+    // === THEME SWITCHER ENGINE ===
+    function switchTheme(themeKey) {
+      // 1. Set root attribute
+      document.documentElement.setAttribute('data-theme', themeKey);
+      
+      // 2. Synchronize Dropdown
+      document.getElementById('themeSelect').value = themeKey;
+
+      // 3. Save Preference
+      localStorage.setItem('ytdaily-theme', themeKey);
+
+      // 4. Update Theme Settings Cards Selection State
+      document.querySelectorAll('.theme-preview-card').forEach(card => {
+        card.classList.remove('selected');
+      });
+    }
+
+    // === INITIALIZATION ===
+    window.addEventListener('DOMContentLoaded', () => {
+      const savedTheme = localStorage.getItem('ytdaily-theme') || 'catppuccin-mocha';
+      switchTheme(savedTheme);
+      lucide.createIcons();
+    });
+  </script>
+</body>
+</html>
