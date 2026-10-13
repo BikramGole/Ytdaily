@@ -21,3 +21,8 @@ YT_podcasts/
 env/
 venv/
 virtualenv/
+
+# Build & egg artifacts
+build/
+dist/
+*.egg-info/
