@@ -56,6 +56,72 @@ class DownloadWorker(QObject):
         self.cancel_event.set()
 
 
+class PlaylistFetchWorker(QObject):
+    """Read playlist metadata and its entry list for display in a picker."""
+
+    fetched = Signal(dict)
+    finished = Signal(bool, str)
+
+    def __init__(self, scanner: Scanner, url: str) -> None:
+        super().__init__()
+        self.scanner = scanner
+        self.url = url
+
+    @Slot()
+    def run(self) -> None:
+        info = self.scanner.get_playlist_info(self.url)
+        if not info:
+            self.finished.emit(False, "Could not read playlist details. Check the URL and connection.")
+            return
+        videos = self.scanner.get_playlist_videos(self.url, info.get("title", "Unknown Playlist"), info.get("video_count", 0))
+        if not videos:
+            self.finished.emit(False, f"No downloadable videos found in “{info.get('title', 'this playlist')}”.")
+            return
+        self.fetched.emit({"info": info, "videos": videos})
+        self.finished.emit(True, f"Found {len(videos)} videos in “{info.get('title', 'playlist')}”.")
+
+
+class PlaylistDownloadWorker(QObject):
+    """Download all or selected playlist entries in the background."""
+
+    progress = Signal(dict)
+    finished = Signal(bool, str)
+
+    def __init__(
+        self,
+        downloader: Downloader,
+        url: str,
+        download_type: str,
+        playlist_items: List[int],
+    ) -> None:
+        super().__init__()
+        self.downloader = downloader
+        self.url = url
+        self.download_type = download_type
+        self.playlist_items = playlist_items
+        self.cancel_event = threading.Event()
+
+    @Slot()
+    def run(self) -> None:
+        success, _ = self.downloader.download_playlist(
+            self.url,
+            download_type=self.download_type,
+            playlist_items=self.playlist_items,
+            progress_callback=self.progress.emit,
+            cancel_event=self.cancel_event,
+            show_console=False,
+        )
+        if self.cancel_event.is_set():
+            self.finished.emit(False, "Playlist download cancelled.")
+        else:
+            self.finished.emit(success, "Playlist download complete." if success else "Playlist download failed.")
+        self.cancel_event.clear()
+
+    @Slot()
+    def cancel(self) -> None:
+        self.cancel_event.set()
+
+
 class AutoDownloadWorker(QObject):
     """Scan tracked sources and download newly discovered items in the background."""
 
