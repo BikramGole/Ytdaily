@@ -150,14 +150,13 @@ class Downloader:
         try:
             clean_title = re.sub(r'[<>:"/\\|?*]', '_', video_title)
             clean_title = re.sub(r'\s+', ' ', clean_title).strip()
+            escaped_title = glob.escape(clean_title)
 
             subtitle_patterns = [
-                f"*{clean_title}*.en.srt",
-                f"*{clean_title}*.srt",
-                f"*{clean_title}*.vtt",
-                f"*{clean_title}*.en.vtt",
-                f"*.srt",
-                f"*.vtt",
+                f"*{escaped_title}*.en.srt",
+                f"*{escaped_title}*.srt",
+                f"*{escaped_title}*.vtt",
+                f"*{escaped_title}*.en.vtt",
             ]
 
             files_cleaned = 0
@@ -197,13 +196,14 @@ class Downloader:
         try:
             video_title = video_info.get("title", "Unknown")
             clean_title = re.sub(r'[<>:"/\\|?*]', '_', video_title)
+            escaped_title = glob.escape(clean_title)
 
             if download_type == "video":
                 download_dir = self.config.current_video_dir
-                file_pattern = f"*{clean_title}*.mp4"
+                file_pattern = f"*{escaped_title}*.mp4"
             else:
                 download_dir = self.config.current_audio_dir
-                file_pattern = f"*{clean_title}*.mp3"
+                file_pattern = f"*{escaped_title}*.mp3"
 
             for file_path in download_dir.glob(file_pattern):
                 if file_path.is_file():
