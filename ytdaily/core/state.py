@@ -124,7 +124,12 @@ class StateManager:
             try:
                 if self.config.channel_history_path.exists():
                     with open(self.config.channel_history_path, "r", encoding="utf-8") as f:
-                        self.channel_history = json.load(f)
+                        channel_history_data = json.load(f)
+
+                    if not isinstance(channel_history_data, dict):
+                        channel_history_data = {}
+
+                    self.channel_history = channel_history_data
                 else:
                     self.channel_history = {
                         "channels": {},
@@ -220,7 +225,12 @@ class StateManager:
             try:
                 if self.config.resume_state_path.exists():
                     with open(self.config.resume_state_path, "r", encoding="utf-8") as f:
-                        self.resume_state = json.load(f)
+                        resume_state_data = json.load(f)
+
+                    if not isinstance(resume_state_data, dict):
+                        resume_state_data = {}
+
+                    self.resume_state = resume_state_data
                 else:
                     self.resume_state = {"videos": {}, "playlists": {}, "last_cleanup": datetime.now().isoformat()}
                     self._save_resume_state_locked()
@@ -302,14 +312,24 @@ class StateManager:
             try:
                 if self.config.download_log_path.exists():
                     with open(self.config.download_log_path, "r", encoding="utf-8") as f:
-                        self.download_history = json.load(f)
+                        download_history_data = json.load(f)
+
+                    if not isinstance(download_history_data, dict):
+                        download_history_data = {}
+
+                    self.download_history = download_history_data
                 else:
                     self.download_history = {"channels": {}, "playlists": {}}
                     self._save_download_history_locked()
 
                 if self.config.last_download_path.exists():
                     with open(self.config.last_download_path, "r", encoding="utf-8") as f:
-                        self.last_download = json.load(f)
+                        last_download_data = json.load(f)
+
+                    if not isinstance(last_download_data, dict):
+                        last_download_data = {}
+
+                    self.last_download = last_download_data
                 else:
                     self.last_download = {}
             except Exception as e:
