@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from pathlib import Path
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, List, Optional
 
 from PySide6.QtCore import QSettings, Qt, QThread, Signal
 from PySide6.QtGui import QAction
@@ -35,6 +34,7 @@ from PySide6.QtWidgets import (
     QSystemTrayIcon,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -45,10 +45,25 @@ from ytdaily.core.downloader import Downloader
 from ytdaily.core.scanner import Scanner
 from ytdaily.core.state import StateManager
 from ytdaily.gui.themes import THEMES, Theme, build_stylesheet, rgba
-from ytdaily.gui.workers import AutoDownloadWorker, DownloadWorker
+from ytdaily.gui.workers import (
+    AutoDownloadWorker,
+    DownloadWorker,
+    PlaylistDownloadWorker,
+    PlaylistFetchWorker,
+)
 from ytdaily.utils.browser import SUPPORTED_BROWSERS, detect_browser
 from ytdaily.utils.logging import setup_logging
 from ytdaily.utils.system import get_disk_space_info
+
+NAV_ITEMS = [
+    "⌂  Dashboard",
+    "◎  Channels",
+    "≡  Playlists",
+    "↓  Downloads",
+    "↻  History",
+    "⚙  Settings",
+]
+PAGE_DASHBOARD, PAGE_CHANNELS, PAGE_PLAYLISTS, PAGE_DOWNLOADS, PAGE_HISTORY, PAGE_SETTINGS = range(6)
 
 
 def button(label: str, callback: Callable[[], None], role: str = "") -> QPushButton:
@@ -59,59 +74,78 @@ def button(label: str, callback: Callable[[], None], role: str = "") -> QPushBut
     return control
 
 
+def page_header(parent: QWidget, title: str, subtitle: str) -> QVBoxLayout:
+    layout = QVBoxLayout(parent)
+    layout.setContentsMargins(32, 28, 32, 24)
+    layout.setSpacing(12)
+    heading = QLabel(title)
+    heading.setObjectName("title")
+    layout.addWidget(heading)
+    sub = QLabel(subtitle)
+    sub.setObjectName("subtitle")
+    layout.addWidget(sub)
+    return layout
+
+
 class DashboardPage(QWidget):
     run_requested = Signal()
 
     def __init__(self, config: Config, state: StateManager) -> None:
         super().__init__()
         self.config, self.state = config, state
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(28, 28, 28, 28)
-        layout.setSpacing(14)
-        title = QLabel("Ytdaily")
-        title.setObjectName("title")
-        layout.addWidget(title)
-        subtitle = QLabel("Your desktop YouTube automation hub")
-        subtitle.setObjectName("subtitle")
-        layout.addWidget(subtitle)
+        self._actions: Dict[QFrame, str] = {}
+        layout = page_header(self, "Dashboard", "Automatic channel and playlist downloads")
 
-        cards = QGridLayout()
+        stats = QGridLayout()
+        stats.setSpacing(14)
         self.channel_card = self._card("Tracked channels")
         self.playlist_card = self._card("Tracked playlists")
         self.history_card = self._card("Downloads tracked")
         self.disk_card = self._card("Free storage")
         for index, card in enumerate((self.channel_card, self.playlist_card, self.history_card, self.disk_card)):
-            cards.addWidget(card, 0, index)
-        layout.addLayout(cards)
+            stats.addWidget(card, 0, index)
+        layout.addLayout(stats)
 
-        action_box = QGroupBox("Automatic download")
-        action_layout = QVBoxLayout(action_box)
-        action_layout.addWidget(QLabel("Scan all tracked channels and playlists, then download newly found items."))
+        action = QFrame()
+        action.setObjectName("card")
+        action_layout = QVBoxLayout(action)
+        action_layout.setContentsMargins(20, 18, 20, 16)
+        action_layout.setSpacing(10)
+        action_title = QLabel("Automatic downloads")
+        action_title.setObjectName("sectionTitle")
+        action_layout.addWidget(action_title)
+        action_layout.addWidget(QLabel("Scan every tracked channel and playlist, then download what is new."))
+        actions = QHBoxLayout()
         self.run_button = button("Scan and download now", self.run_requested.emit)
-        action_layout.addWidget(self.run_button, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.run_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        actions.addWidget(self.run_button)
+        actions.addStretch()
         self.run_status = QLabel("Ready.")
-        self.run_status.setObjectName("subtitle")
-        action_layout.addWidget(self.run_status)
-        layout.addWidget(action_box)
-
-        last = state.get_last_download()
-        self.last_download = QLabel()
+        self.run_status.setObjectName("hint")
+        actions.addWidget(self.run_status)
+        action_layout.addLayout(actions)
+        self.last_download = QLabel("No completed downloads recorded yet.")
+        self.last_download.setObjectName("hint")
         self.last_download.setWordWrap(True)
-        layout.addWidget(self.last_download)
+        action_layout.addWidget(self.last_download)
+        layout.addWidget(action)
+
         layout.addStretch()
         self.refresh()
 
-    def _card(self, heading: str) -> QFrame:
+    def _card(self, label: str) -> QFrame:
         frame = QFrame()
         frame.setObjectName("card")
+        frame.setMinimumHeight(96)
         view = QVBoxLayout(frame)
-        view.setContentsMargins(18, 16, 18, 16)
-        view.setSpacing(2)
-        heading_label = QLabel(heading)
-        heading_label.setObjectName("cardLabel")
+        view.setContentsMargins(18, 14, 18, 14)
+        view.setSpacing(3)
+        heading = QLabel(label)
+        heading.setObjectName("cardLabel")
+        heading.setWordWrap(True)
         value = QLabel("—")
         value.setObjectName("cardValue")
-        view.addWidget(heading_label)
+        view.addWidget(heading)
         view.addWidget(value)
         return frame
 
@@ -122,59 +156,95 @@ class DashboardPage(QWidget):
     def refresh(self) -> None:
         self._set_card(self.channel_card, str(len(self.state.channels)))
         self._set_card(self.playlist_card, str(len(self.state.playlists)))
-        total = sum(len(source.get("downloaded_videos", [])) for source in self.state.channel_history.get("channels", {}).values())
+        total = sum(
+            len(source.get("downloaded_videos", []))
+            for source in self.state.channel_history.get("channels", {}).values()
+        )
         self._set_card(self.history_card, str(total))
-        self._set_card(self.disk_card, get_disk_space_info(self.config.base_video_dir).get("free_gb", "Unknown"))
+        self._set_card(self.disk_card, str(get_disk_space_info(self.config.base_video_dir).get("free_gb", "—")))
         last = self.state.get_last_download()
         if last:
-            self.last_download.setText(f"Last download: <b>{last.get('title', 'Unknown')}</b> from {last.get('source', 'Unknown')}")
+            self.last_download.setText(
+                f"Last download: {last.get('title', 'Unknown')} — {last.get('source', 'Unknown')}"
+            )
         else:
             self.last_download.setText("No completed downloads recorded yet.")
 
 
 class SourcesPage(QWidget):
     changed = Signal()
+    open_in_downloads = Signal(str)
 
     def __init__(self, state: StateManager, kind: str) -> None:
         super().__init__()
         self.state, self.kind = state, kind
         self.items: Dict[str, str] = state.channels if kind == "channel" else state.playlists
-        name = "Channels" if kind == "channel" else "Playlists"
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(28, 28, 28, 28)
-        title = QLabel(name)
-        title.setObjectName("title")
-        layout.addWidget(title)
-        layout.addWidget(QLabel(f"Manage YouTube {kind}s tracked by automatic downloads."), alignment=Qt.AlignmentFlag.AlignLeft)
+        self.name = "Channels" if kind == "channel" else "Playlists"
+        self._columns = page_header(self, self.name, f"Manage the YouTube {kind}s automatic downloads watch.")
+        self.count_label = QLabel()
+        self.count_label.setObjectName("hint")
+        self._columns.addWidget(self.count_label)
+
+        grid = QGridLayout()
+        grid.setSpacing(14)
 
         add_box = QGroupBox(f"Add {kind}")
-        add_layout = QFormLayout(add_box)
         self.identifier = QLineEdit()
-        self.identifier.setPlaceholderText("@channel-handle or channel URL" if kind == "channel" else "https://www.youtube.com/playlist?list=…")
+        self.identifier.setPlaceholderText(
+            "@channel-handle or channel URL" if kind == "channel" else "https://www.youtube.com/playlist?list=…"
+        )
         self.display_name = QLineEdit()
         self.display_name.setPlaceholderText("Display name")
-        add_layout.addRow("Channel handle / URL" if kind == "channel" else "Playlist URL", self.identifier)
-        add_layout.addRow("Display name", self.display_name)
-        add_layout.addRow(button(f"Add {kind}", self.add))
-        layout.addWidget(add_box)
+        form = QFormLayout(add_box)
+        form.addRow("Identifier", self.identifier)
+        form.addRow("Display name", self.display_name)
+        add_button = button(f"Add {kind}", self.add)
+        add_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        form.addRow(add_button)
 
+        table_box = QGroupBox(f"Tracked {kind}s")
+        table_layout = QVBoxLayout(table_box)
         self.table = QTableWidget(0, 2)
-        self.table.setHorizontalHeaderLabels(["Name", "Channel handle / URL" if kind == "channel" else "Playlist URL"])
+        self.table.setHorizontalHeaderLabels(["Name", "Identifier"])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.horizontalHeader().setStretchLastSection(True)
-        layout.addWidget(self.table)
-        layout.addWidget(button(f"Remove selected {kind}", self.remove, "danger"), alignment=Qt.AlignmentFlag.AlignLeft)
+        self.table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignLeft)
+        self.table.verticalHeader().setVisible(False)
+        table_layout.addWidget(self.table)
+        table_actions = QHBoxLayout()
+        table_actions.addWidget(button(f"Remove selected {kind}", self.remove, "danger"))
+        table_actions.addStretch()
+        if kind == "playlist":
+            table_actions.addWidget(button("Download this playlist…", self.request_download, "secondary"))
+        table_layout.addLayout(table_actions)
+
+        grid.addWidget(add_box, 0, 0)
+        grid.addWidget(table_box, 1, 0)
+        grid.setRowStretch(1, 1)
+        self._columns.addLayout(grid, stretch=1)
         self.refresh()
+
+    def request_download(self) -> None:
+        row = self.table.currentRow()
+        if row >= 0:
+            source_id = self.table.item(row, 1).data(Qt.ItemDataRole.UserRole)
+            self.open_in_downloads.emit(source_id)
 
     def add(self) -> None:
         source_id = self.identifier.text().strip()
         label = self.display_name.text().strip()
         if self.kind == "channel":
             source_id = source_id.lstrip("@")
-        if not source_id or not label:
-            QMessageBox.warning(self, "Missing information", "Enter both an identifier and a display name.")
+        if not source_id:
+            QMessageBox.warning(self, f"Add {self.kind}", "Enter the playlist URL." if self.kind == "playlist" else "Enter the channel handle or URL.")
+            return
+        if not label:
+            QMessageBox.warning(self, f"Add {self.kind}", "Enter a display name to list this source.")
+            return
+        if source_id in self.items:
+            QMessageBox.warning(self, f"Add {self.kind}", f"You already track {label}.")
             return
         self.items[source_id] = label
         self.state.save_config()
@@ -188,7 +258,13 @@ class SourcesPage(QWidget):
         if row < 0:
             return
         source_id = self.table.item(row, 1).data(Qt.ItemDataRole.UserRole)
-        if QMessageBox.question(self, "Remove source", f"Remove {self.items[source_id]}?") != QMessageBox.StandardButton.Yes:
+        answer = QMessageBox.question(
+            self,
+            f"Remove {self.kind}",
+            f"Stop tracking {self.items[source_id]}?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
             return
         del self.items[source_id]
         self.state.save_config()
@@ -203,39 +279,47 @@ class SourcesPage(QWidget):
             identifier = QTableWidgetItem(source_id)
             identifier.setData(Qt.ItemDataRole.UserRole, source_id)
             self.table.setItem(row, 1, identifier)
+        self.count_label.setText(f"{len(self.items)} tracked {self.kind}{'s' if len(self.items) != 1 else ''}")
 
 
-class DownloadPage(QWidget):
-    def __init__(self, start_download: Callable[[str, bool], None], cancel_download: Callable[[], None]) -> None:
+class SingleDownloadPanel(QWidget):
+    start_requested = Signal(str, bool)
+    cancel_requested = Signal()
+
+    def __init__(self) -> None:
         super().__init__()
-        self.start_download, self.cancel_download = start_download, cancel_download
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(28, 28, 28, 28)
-        title = QLabel("Single download")
-        title.setObjectName("title")
-        layout.addWidget(title)
-        box = QGroupBox("Download a video or audio track")
-        form = QFormLayout(box)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+
+        form_box = QGroupBox("Download a video or audio track")
+        form = QFormLayout(form_box)
         self.url = QLineEdit()
         self.url.setPlaceholderText("Paste a YouTube video URL")
         self.kind = QComboBox()
         self.kind.addItems(["Video (MP4)", "Audio (MP3, 320 kbps)"])
         self.start = button("Start download", self._start)
-        self.cancel = button("Cancel", self.cancel_download, "danger")
+        self.start.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.cancel = button("Cancel", self.cancel_requested.emit, "danger")
         self.cancel.setEnabled(False)
         actions = QHBoxLayout()
         actions.addWidget(self.start)
         actions.addWidget(self.cancel)
         actions.addStretch()
-        form.addRow("Video URL", self.url)
+        form.addRow("URL", self.url)
         form.addRow("Format", self.kind)
         form.addRow(actions)
-        layout.addWidget(box)
+        layout.addWidget(form_box)
+
         self.status = QLabel("Ready.")
+        self.status.setObjectName("hint")
         self.progress = QProgressBar()
         self.progress.setRange(0, 100)
-        layout.addWidget(self.status)
-        layout.addWidget(self.progress)
+        progress_row = QVBoxLayout()
+        progress_row.addWidget(self.progress)
+        progress_row.addWidget(self.status)
+        layout.addLayout(progress_row)
+
         self.log = QTextEdit()
         self.log.setObjectName("terminal")
         self.log.setReadOnly(True)
@@ -251,21 +335,27 @@ class DownloadPage(QWidget):
         self.progress.setValue(0)
         self.start.setEnabled(False)
         self.cancel.setEnabled(True)
-        self.start_download(url, self.kind.currentIndex() == 1)
+        self.status.setText("Starting download…")
+        self.start_requested.emit(url, self.kind.currentIndex() == 1)
 
     def handle_progress(self, data: dict) -> None:
         event_type = data.get("type", "update")
         if event_type == "download":
             percent = float(data.get("percent", 0))
             self.progress.setValue(round(percent))
-            self.status.setText(f"Downloading {percent:.1f}% — {data.get('speed', '')}, ETA {data.get('eta', '')}")
+            self.status.setText(f"Downloading… {percent:.1f}%  ·  {data.get('speed', '')}  ·  ETA {data.get('eta', '')}")
         elif event_type in ("extract", "converting"):
             self.status.setText("Processing media…")
         elif event_type == "starting":
             self.status.setText(f"Preparing: {data.get('title', '')}")
         elif event_type == "failed":
-            self.log.append(data.get("message", "Download failed"))
-        self.log.append(f"{event_type}: {data.get('title', '')}")
+            self.log.append(f"❌ {data.get('message', 'Download failed')}")
+            return
+        elif event_type == "completed":
+            self.log.append(f"✔ Saved: {data.get('title', '')}")
+            return
+        else:
+            return
 
     def complete(self, success: bool, message: str) -> None:
         self.start.setEnabled(True)
@@ -275,24 +365,227 @@ class DownloadPage(QWidget):
             self.progress.setValue(100)
 
 
+class PlaylistPanel(QWidget):
+    fetch_requested = Signal(str)
+    download_requested = Signal(str, str, object)
+    cancel_requested = Signal()
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._entries: List[Dict[str, object]] = []
+        self._busy = False
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+
+        form_box = QGroupBox("Download a playlist")
+        form_layout = QVBoxLayout(form_box)
+        form_layout.setSpacing(10)
+        url_row = QHBoxLayout()
+        self.url = QLineEdit()
+        self.url.setPlaceholderText("https://www.youtube.com/playlist?list=…")
+        self.fetch_button = button("Fetch videos", self._fetch)
+        self.fetch_button.setEnabled(True)
+        url_row.addWidget(self.url, stretch=1)
+        url_row.addWidget(self.fetch_button)
+        form_layout.addLayout(url_row)
+        self.info = QLabel()
+        self.info.setObjectName("hint")
+        self.info.setWordWrap(True)
+        form_layout.addWidget(self.info)
+
+        controls = QHBoxLayout()
+        self.select_all = button("Select all", self._select_all, "secondary")
+        self.clear_selection = button("Clear selection", self._clear_selection, "secondary")
+        controls.addWidget(self.select_all)
+        controls.addWidget(self.clear_selection)
+        controls.addStretch()
+        self.kind = QComboBox()
+        self.kind.addItems(["Video (MP4)", "Audio (MP3, 320 kbps)"])
+        controls.addWidget(self.kind)
+        self.download_button = button("Download selected", self._download)
+        self.download_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        controls.addWidget(self.download_button)
+        self.cancel = button("Cancel", self.cancel_requested.emit, "danger")
+        self.cancel.setEnabled(False)
+        controls.addWidget(self.cancel)
+        form_layout.addLayout(controls)
+        layout.addWidget(form_box)
+
+        self.table = QTableWidget(0, 2)
+        self.table.setHorizontalHeaderLabels(["#", "Title"])
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignLeft)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setColumnWidth(0, 56)
+        self.table.itemSelectionChanged.connect(self._update_download_button)
+        self.table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(self.table, stretch=1)
+
+        self.overall = QProgressBar()
+        self.current = QProgressBar()
+        overall_row = QHBoxLayout()
+        overall_label = QLabel("Overall")
+        overall_label.setObjectName("hint")
+        overall_row.addWidget(overall_label)
+        overall_row.addWidget(self.overall, stretch=1)
+        current_row = QHBoxLayout()
+        current_label = QLabel("Item")
+        current_label.setObjectName("hint")
+        current_row.addWidget(current_label)
+        current_row.addWidget(self.current, stretch=1)
+        self.status = QLabel("Paste a playlist URL and fetch its videos to pick what to download.")
+        self.status.setObjectName("hint")
+        layout.addLayout(overall_row)
+        layout.addLayout(current_row)
+        layout.addWidget(self.status)
+        self._set_enabled(False)
+
+    def _fetch(self) -> None:
+        url = self.url.text().strip()
+        if not url:
+            QMessageBox.warning(self, "URL required", "Paste a YouTube playlist URL first.")
+            return
+        self.fetch_requested.emit(url)
+
+    def _download(self) -> None:
+        items = self.selected_indices()
+        if not items:
+            return
+        download_type = "audio" if self.kind.currentIndex() == 1 else "video"
+        self.download_requested.emit(self.url.text().strip(), download_type, items)
+
+    def _select_all(self) -> None:
+        self.table.selectAll()
+
+    def _clear_selection(self) -> None:
+        self.table.clearSelection()
+
+    def selected_indices(self) -> List[int]:
+        return sorted(
+            int(self.table.item(row, 0).data(Qt.ItemDataRole.UserRole))
+            for row in range(self.table.rowCount())
+            if self.table.item(row, 0).isSelected()
+        )
+
+    def _update_download_button(self) -> None:
+        count = len(self.selected_indices())
+        self.download_button.setText(f"Download selected ({count})" if count else "Download selected")
+        if not self._busy:
+            self.download_button.setEnabled(count > 0)
+
+    def _set_enabled(self, enabled: bool) -> None:
+        self.select_all.setEnabled(enabled)
+        self.clear_selection.setEnabled(enabled)
+        self.kind.setEnabled(enabled)
+        self._update_download_button()
+
+    def set_fetching(self) -> None:
+        self._busy = True
+        self.url.setEnabled(False)
+        self.fetch_button.setEnabled(False)
+        self.info.clear()
+        self.table.setRowCount(0)
+        self._set_enabled(False)
+        self.status.setText("Fetching playlist details…")
+
+    def display_playlist(self, payload: dict) -> None:
+        info = payload.get("info", {})
+        videos = payload.get("videos", [])
+        self._entries = videos
+        title = info.get("title", "Unknown playlist")
+        uploader = info.get("uploader", "Unknown")
+        self.info.setText(f"“{title}” · {uploader} · {len(videos)} videos")
+        self.table.setRowCount(0)
+        for row, entry in enumerate(videos):
+            index = int(entry.get("playlist_index", row + 1) or row + 1)
+            self.table.insertRow(row)
+            index_item = QTableWidgetItem(str(index))
+            index_item.setData(Qt.ItemDataRole.UserRole, index)
+            self.table.setItem(row, 0, index_item)
+            self.table.setItem(row, 1, QTableWidgetItem(entry.get("title", "Untitled")))
+        self.table.setCurrentCell(0, 0)
+        self.table.clearSelection()
+        self.overall.setValue(0)
+        self.current.setValue(0)
+        self._busy = False
+        self.url.setEnabled(True)
+        self.fetch_button.setEnabled(True)
+        self._set_enabled(bool(videos))
+        self.status.setText(f"Ready: {self.table.rowCount()} videos listed. Select what to download.")
+
+    def set_downloading(self) -> None:
+        self._busy = True
+        self.url.setEnabled(False)
+        self.fetch_button.setEnabled(False)
+        self._set_enabled(False)
+        self.cancel.setEnabled(True)
+        self.overall.setValue(0)
+        self.current.setValue(0)
+        self.status.setText("Preparing playlist download…")
+
+    def handle_progress(self, data: dict) -> None:
+        event_type = data.get("type")
+        if event_type == "playlist_progress":
+            self.overall.setValue(0)
+            self.current.setValue(0)
+            self.status.setText(f"Video {data.get('current', '?')} of {data.get('total', '?')}…")
+        elif event_type == "playlist_current":
+            self.current.setValue(round(float(data.get("percent", 0))))
+            self.overall.setValue(round(float(data.get("overall", 0))))
+            self.status.setText(
+                f"Video {data.get('item', '?')}/{data.get('total', '?')}  ·  {data.get('speed', '')}  ·  ETA {data.get('eta', '')}"
+            )
+        elif event_type == "completed":
+            self.overall.setValue(100)
+            self.current.setValue(100)
+        elif event_type == "failed":
+            self.status.setText(f"…{data.get('message', 'error')}")
+
+    def fetch_finished(self, success: bool, message: str) -> None:
+        self.fetch_button.setEnabled(True)
+        self.url.setEnabled(True)
+        if not success:
+            self._busy = False
+            self._set_enabled(False)
+            self.status.setText(message)
+
+    def complete(self, success: bool, message: str) -> None:
+        self._busy = False
+        self.cancel.setEnabled(False)
+        self.fetch_button.setEnabled(True)
+        self.url.setEnabled(True)
+        self._set_enabled(bool(self._entries))
+        self.status.setText(message)
+        if success:
+            self.overall.setValue(100)
+
+
 class HistoryPage(QWidget):
+    changed = Signal()
+
     def __init__(self, state: StateManager) -> None:
         super().__init__()
         self.state = state
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(28, 28, 28, 28)
-        title = QLabel("Download history")
-        title.setObjectName("title")
-        layout.addWidget(title)
+        layout = page_header(self, "History", "Everything automatic and manual downloads have saved")
+        self.count_label = QLabel()
+        self.count_label.setObjectName("hint")
+        layout.addWidget(self.count_label)
         self.search = QLineEdit()
         self.search.setPlaceholderText("Search title, source, or video ID")
         self.search.textChanged.connect(self.refresh)
         layout.addWidget(self.search)
         self.table = QTableWidget(0, 3)
-        self.table.setHorizontalHeaderLabels(["Title", "Source", "Downloaded"])
+        self.table.setHorizontalHeaderLabels(["Title", "Source", "Saved"])
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.horizontalHeader().setStretchLastSection(True)
-        layout.addWidget(self.table)
+        self.table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignLeft)
+        self.table.verticalHeader().setVisible(False)
+        layout.addWidget(self.table, stretch=1)
         self.refresh()
 
     def refresh(self) -> None:
@@ -302,7 +595,9 @@ class HistoryPage(QWidget):
             self.table.insertRow(row)
             self.table.setItem(row, 0, QTableWidgetItem(item["title"]))
             self.table.setItem(row, 1, QTableWidgetItem(item["source"]))
-            self.table.setItem(row, 2, QTableWidgetItem(item["downloaded_at"]))
+            self.table.setItem(row, 2, QTableWidgetItem(item["downloaded_at"][:19].replace("T", " ")))
+        count = len(items)
+        self.count_label.setText(f"{count} download{'s' if count != 1 else ''}")
 
 
 class SettingsPage(QWidget):
@@ -314,42 +609,50 @@ class SettingsPage(QWidget):
         self.config, self.state = config, state
         self._theme_buttons: Dict[str, QPushButton] = {}
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(28, 28, 28, 28)
-        layout.setSpacing(14)
-        title = QLabel("Settings")
-        title.setObjectName("title")
-        layout.addWidget(title)
+        layout.setContentsMargins(32, 28, 32, 24)
+        layout.setSpacing(12)
+        heading = QLabel("Settings")
+        heading.setObjectName("title")
+        layout.addWidget(heading)
+        sub = QLabel("Themes, folders, and download behaviour")
+        sub.setObjectName("subtitle")
+        layout.addWidget(sub)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         content = QWidget()
         content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setContentsMargins(0, 4, 0, 0)
         content_layout.setSpacing(14)
 
-        section = QLabel("Appearance & themes")
+        section = QLabel("Appearance")
         section.setObjectName("sectionTitle")
         content_layout.addWidget(section)
+        theme_note = QLabel("Catppuccin Mocha is the default theme.")
+        theme_note.setObjectName("hint")
+        content_layout.addWidget(theme_note)
         cards = QGridLayout()
         cards.setSpacing(14)
-        for index, theme in enumerate(THEMES.values()):
-            cards.addWidget(self._theme_card(theme), 0, index)
+        card_positions = [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1)]
+        for theme, (row, column) in zip(THEMES.values(), card_positions):
+            cards.addWidget(self._theme_card(theme), row, column)
         content_layout.addLayout(cards)
-        self.sync_theme(current_theme)
 
-        content_layout.addWidget(self._engine_card())
-        engine_section = QLabel("Engine profile")
+        engine_section = QLabel("Engine")
         engine_section.setObjectName("sectionTitle")
         content_layout.addWidget(engine_section)
+        content_layout.addWidget(self._engine_card())
+
         self.engine_preview = QTextEdit()
         self.engine_preview.setObjectName("terminal")
         self.engine_preview.setReadOnly(True)
-        self.engine_preview.setFixedHeight(110)
-        self.engine_preview.setPlainText(self._engine_summary())
+        self.engine_preview.setFixedHeight(120)
         content_layout.addWidget(self.engine_preview)
+        self.engine_preview.setPlainText(self._engine_summary())
         content_layout.addStretch()
 
         scroll.setWidget(content)
-        layout.addWidget(scroll)
+        layout.addWidget(scroll, stretch=1)
 
     def _theme_card(self, theme: Theme) -> QPushButton:
         card = QPushButton()
@@ -357,11 +660,11 @@ class SettingsPage(QWidget):
         card.setCheckable(True)
         card.setAutoExclusive(True)
         card.setCursor(Qt.CursorShape.PointingHandCursor)
-        card.setMinimumHeight(94)
-        card.setMinimumWidth(200)
+        card.setMinimumHeight(96)
+        card.setMinimumWidth(190)
         card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         view = QVBoxLayout(card)
-        view.setContentsMargins(14, 12, 14, 12)
+        view.setContentsMargins(12, 10, 12, 12)
         view.setSpacing(8)
         name = QLabel(theme.name)
         name.setObjectName("themeCardName")
@@ -391,7 +694,7 @@ class SettingsPage(QWidget):
                 card.style().polish(card)
 
     def _engine_card(self) -> QGroupBox:
-        box = QGroupBox("Engine parameters")
+        box = QGroupBox("Download settings")
         form = QFormLayout(box)
         self.video_dir = self._path_field(form, "Video folder", self.config.base_video_dir)
         self.audio_dir = self._path_field(form, "Audio folder", self.config.base_audio_dir)
@@ -425,12 +728,13 @@ class SettingsPage(QWidget):
             f" -> {self.config.output_format}\n"
             f"parallel  {self.parallel.value()} concurrent jobs"
             f"   ·   shorts {'skipped' if self.filter_shorts.isChecked() else 'kept'}"
-            f"   ·   {self.config.cleanup_days}-day retention\n"
-            f"video out {self.config.base_video_dir}\n"
-            f"audio out {self.config.base_audio_dir}"
+            f"   ·   {self.cleanup.value()}-day retention\n"
+            f"video out {self.video_dir.text()}\n"
+            f"audio out {self.audio_dir.text()}"
         )
 
-    def _path_field(self, form: QFormLayout, label: str, value: Path) -> QLineEdit:
+    def _path_field(self, form: QFormLayout, label: str, value) -> QLineEdit:
+        """Return a QLineEdit wired to a folder picker row inside ``form``."""
         line = QLineEdit(str(value))
         browse = button("Browse…", lambda: self._choose_folder(line), "secondary")
         row = QHBoxLayout()
@@ -458,12 +762,26 @@ class SettingsPage(QWidget):
             self.config.ensure_directories()
             self.config.validate()
             self.state.save_config()
-            self.engine_preview.setPlainText(self._engine_summary())
         except OSError as error:
             QMessageBox.critical(self, "Could not save settings", str(error))
             return
+        self.engine_preview.setPlainText(self._engine_summary())
         QMessageBox.information(self, "Settings saved", "Your settings have been saved.")
         self.changed.emit()
+
+
+class DownloadPage(QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        self.tabs = QTabWidget()
+        self.single = SingleDownloadPanel()
+        self.playlist = PlaylistPanel()
+        self.tabs.addTab(self.single, "Single video")
+        self.tabs.addTab(self.playlist, "Playlist")
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self.tabs)
 
 
 class MainWindow(QMainWindow):
@@ -476,14 +794,14 @@ class MainWindow(QMainWindow):
         self.state = StateManager(config, self.logger)
         self.scanner = Scanner(config, self.state, self.logger)
         self.downloader = Downloader(config, self.state, self.scanner, self.logger)
-        self.worker_thread: Optional[QThread] = None
-        self.worker: Optional[object] = None
+        self._jobs: Dict[str, tuple] = {}
 
         self.setWindowTitle("Ytdaily")
         self.setMinimumSize(980, 650)
         self.resize(1180, 760)
-        stored = QSettings("Ytdaily", "GUI").value("theme", "catppuccin-mocha", type=str)
-        self.theme_key = stored if stored in THEMES else "catppuccin-mocha"
+        self.theme_key = QSettings("Ytdaily", "GUI").value("theme", "catppuccin-mocha", type=str)
+        if self.theme_key not in THEMES:
+            self.theme_key = "catppuccin-mocha"
         self._build_ui()
         self._build_tray()
         self.apply_theme(self.theme_key)
@@ -496,7 +814,7 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(build_stylesheet(theme_key))
         self.logo.setStyleSheet(
             f"background: {rgba(theme.accent, 15)}; color: {theme.accent};"
-            " border-radius: 12px; font-weight: 700; font-size: 15px;"
+            " border-radius: 12px; font-weight: 700; font-size: 16px;"
         )
         self.settings.sync_theme(theme_key)
         QSettings("Ytdaily", "GUI").setValue("theme", theme_key)
@@ -510,26 +828,26 @@ class MainWindow(QMainWindow):
 
         self.sidebar = QWidget()
         self.sidebar.setObjectName("sidebar")
-        self.sidebar.setFixedWidth(236)
+        self.sidebar.setFixedWidth(240)
         self.sidebar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         rail = QVBoxLayout(self.sidebar)
-        rail.setContentsMargins(20, 24, 20, 20)
-        rail.setSpacing(18)
+        rail.setContentsMargins(18, 22, 18, 18)
+        rail.setSpacing(20)
         brand = QHBoxLayout()
         self.logo = QLabel("▶")
         self.logo.setObjectName("logo")
         self.logo.setFixedSize(38, 38)
         self.logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         brand.addWidget(self.logo)
-        brand.addSpacing(6)
-        brand_name = QLabel("Ytdaily")
-        brand_name.setObjectName("brandTitle")
-        brand.addWidget(brand_name)
+        brand.addSpacing(8)
+        brand_title = QLabel("Ytdaily")
+        brand_title.setObjectName("brandTitle")
+        brand.addWidget(brand_title)
         brand.addStretch()
         rail.addLayout(brand)
         self.navigation = QListWidget()
         self.navigation.setObjectName("nav")
-        self.navigation.addItems(["Dashboard", "Channels", "Playlists", "Single download", "History", "Settings"])
+        self.navigation.addItems(NAV_ITEMS)
         self.navigation.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         rail.addWidget(self.navigation, stretch=1)
         footer = QLabel(f"Cookie browser: {detect_browser()}")
@@ -542,7 +860,7 @@ class MainWindow(QMainWindow):
         self.dashboard = DashboardPage(self.config, self.state)
         self.channels = SourcesPage(self.state, "channel")
         self.playlists = SourcesPage(self.state, "playlist")
-        self.download = DownloadPage(self.start_download, self.cancel_active_worker)
+        self.download = DownloadPage()
         self.history = HistoryPage(self.state)
         self.settings = SettingsPage(self.config, self.state, self.theme_key)
         for page in (self.dashboard, self.channels, self.playlists, self.download, self.history, self.settings):
@@ -553,8 +871,15 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self.navigation.currentRowChanged.connect(self.change_page)
         self.navigation.setCurrentRow(0)
+
         self.dashboard.run_requested.connect(self.start_auto_download)
         self.settings.theme_changed.connect(self.apply_theme)
+        self.download.single.start_requested.connect(self.start_download)
+        self.download.single.cancel_requested.connect(self.cancel_single_download)
+        self.download.playlist.fetch_requested.connect(self.start_playlist_fetch)
+        self.download.playlist.download_requested.connect(self.start_playlist_download)
+        self.download.playlist.cancel_requested.connect(self.cancel_playlist_download)
+        self.playlists.open_in_downloads.connect(self.open_playlist_in_downloads)
         for page in (self.channels, self.playlists, self.settings):
             page.changed.connect(self.refresh_all)
 
@@ -581,9 +906,9 @@ class MainWindow(QMainWindow):
 
     def change_page(self, index: int) -> None:
         self.pages.setCurrentIndex(index)
-        if index == 0:
+        if index == PAGE_DASHBOARD:
             self.dashboard.refresh()
-        elif index == 4:
+        elif index == PAGE_HISTORY:
             self.history.refresh()
 
     def refresh_all(self) -> None:
@@ -592,10 +917,9 @@ class MainWindow(QMainWindow):
         self.playlists.refresh()
         self.history.refresh()
 
-    def _start_worker(self, worker: object, done: Callable[..., None]) -> None:
-        if self.worker_thread is not None:
-            QMessageBox.information(self, "Job already running", "Wait for the active job to finish or cancel it first.")
-            return
+    def _start_job(self, slot: str, worker: object, done: Callable[..., None]) -> bool:
+        if slot in self._jobs:
+            return False
         thread = QThread(self)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
@@ -603,32 +927,41 @@ class MainWindow(QMainWindow):
         worker.finished.connect(thread.quit)
         thread.finished.connect(worker.deleteLater)
         thread.finished.connect(thread.deleteLater)
-        thread.finished.connect(self._clear_worker)
-        self.worker, self.worker_thread = worker, thread
+        thread.finished.connect(lambda key=slot: self._jobs.pop(key, None))
+        self._jobs[slot] = (worker, thread)
         thread.start()
+        return True
 
-    def _clear_worker(self) -> None:
-        self.worker = None
-        self.worker_thread = None
+    def _job_running(self, slot: str) -> bool:
+        return slot in self._jobs
 
     def start_download(self, url: str, is_audio: bool) -> None:
         worker = DownloadWorker(self.downloader, self.scanner, url, is_audio)
-        worker.progress.connect(self.download.handle_progress)
-        self._start_worker(worker, self._download_finished)
+        worker.progress.connect(self.download.single.handle_progress)
+        if not self._start_job("single", worker, self._download_finished):
+            QMessageBox.information(self, "Job already running", "Wait for the active job to finish or cancel it first.")
+            self.download.single.start.setEnabled(True)
+            self.download.single.cancel.setEnabled(False)
+            return
+        self.statusBar().showMessage("Download started…")
 
     def _download_finished(self, success: bool, message: str) -> None:
-        self.download.complete(success, message)
+        self.download.single.complete(success, message)
         self.statusBar().showMessage(message, 5000)
         self.refresh_all()
         if self.tray is not None:
             self.tray.showMessage("Ytdaily", message)
 
     def start_auto_download(self) -> None:
+        if self._job_running("auto"):
+            return
+        self.dashboard.run_button.setEnabled(False)
         worker = AutoDownloadWorker(self.config, self.state, self.scanner, self.downloader)
         worker.status.connect(self._auto_status)
-        worker.progress.connect(self.download.handle_progress)
-        self.dashboard.run_button.setEnabled(False)
-        self._start_worker(worker, self._auto_finished)
+        worker.progress.connect(self.download.single.handle_progress)
+        if not self._start_job("auto", worker, self._auto_finished):
+            self.dashboard.run_button.setEnabled(True)
+            self._auto_status("A job is already running. Cancel it or wait for it to finish.")
 
     def _auto_status(self, text: str) -> None:
         self.dashboard.run_status.setText(text)
@@ -642,10 +975,58 @@ class MainWindow(QMainWindow):
         if self.tray is not None:
             self.tray.showMessage("Ytdaily", message)
 
-    def cancel_active_worker(self) -> None:
-        if self.worker is not None:
-            self.worker.cancel()
-            self.statusBar().showMessage("Cancelling current job…")
+    def start_playlist_fetch(self, url: str) -> None:
+        if self._job_running("playlist"):
+            QMessageBox.information(self, "Busy", "A playlist job is already running. Cancel it first or wait for it.")
+            return
+        self.download.playlist.set_fetching()
+        worker = PlaylistFetchWorker(self.scanner, url)
+        worker.fetched.connect(self.download.playlist.display_playlist)
+        if not self._start_job("playlist", worker, self._playlist_fetch_done):
+            self.download.playlist.fetch_finished(False, "A playlist download is still running.")
+
+    def _playlist_fetch_done(self, success: bool, message: str) -> None:
+        self.download.playlist.fetch_finished(success, message)
+        self.statusBar().showMessage(message, 5000)
+
+    def start_playlist_download(self, url: str, download_type: str, items: object) -> None:
+        if self._job_running("playlist"):
+            QMessageBox.information(self, "Busy", "A playlist job is already running. Cancel it first or wait for it.")
+            return
+        item_list = sorted(set(int(index) for index in items)) if items else None
+        self.download.playlist.set_downloading()
+        worker = PlaylistDownloadWorker(self.downloader, url, download_type, item_list or [])
+        worker.progress.connect(self.download.playlist.handle_progress)
+        if not self._start_job("playlist", worker, self._playlist_download_done):
+            self.download.playlist.complete(False, "Could not start download.")
+
+    def _playlist_download_done(self, success: bool, message: str) -> None:
+        self.download.playlist.complete(success, message)
+        self.statusBar().showMessage(message, 5000)
+        self.refresh_all()
+        if self.tray is not None:
+            self.tray.showMessage("Ytdaily", message)
+
+    def open_playlist_in_downloads(self, url: str) -> None:
+        self.navigation.setCurrentRow(PAGE_DOWNLOADS)
+        self.download.tabs.setCurrentIndex(1)
+        self.download.playlist.url.setText(url)
+        if not url:
+            return
+        self.start_playlist_fetch(url)
+
+    def cancel_single_download(self) -> None:
+        job = self._jobs.get("single")
+        if job:
+            job[0].cancel()
+            self.statusBar().showMessage("Cancelling current download…")
+
+    def cancel_playlist_download(self) -> None:
+        job = self._jobs.get("playlist")
+        if job:
+            job[0].cancel()
+            self.download.playlist.status.setText("Cancelling…")
+            self.statusBar().showMessage("Cancelling playlist download…")
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
         if self.tray is not None and self.tray.isVisible():
