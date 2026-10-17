@@ -42,3 +42,47 @@ class TestDesktopGui(unittest.TestCase):
                 h.close()
                 logging.getLogger("ytdaily").removeHandler(h)
         window.deleteLater()
+
+    def test_playlist_picker_needs_selection_before_download(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config = Config(
+                base_video_dir=root / "Videos",
+                base_audio_dir=root / "Music",
+                base_playlist_dir=root / "Playlists",
+                base_podcast_dir=root / "Podcasts",
+                log_dir=root / "state",
+            )
+            window = MainWindow(config)
+            playlist = window.download.playlist
+
+            playlist.display_playlist(
+                {
+                    "info": {"title": "Sample", "uploader": "Creator", "video_count": 3},
+                    "videos": [
+                        {"title": "One", "playlist_index": 1},
+                        {"title": "Two", "playlist_index": 2},
+                        {"title": "Three", "playlist_index": 3},
+                    ],
+                }
+            )
+
+            self.assertEqual(playlist.table.rowCount(), 3)
+            self.assertEqual(playlist.selected_indices(), [])
+            self.assertFalse(playlist.download_button.isEnabled())
+            self.assertTrue(playlist.fetch_button.isEnabled())
+
+            playlist._select_all()
+            self.assertEqual(playlist.selected_indices(), [1, 2, 3])
+            self.assertTrue(playlist.download_button.isEnabled())
+
+            playlist._clear_selection()
+            self.assertEqual(playlist.selected_indices(), [])
+            self.assertFalse(playlist.download_button.isEnabled())
+
+            if window.tray is not None:
+                window.tray.hide()
+            for h in logging.getLogger("ytdaily").handlers[:]:
+                h.close()
+                logging.getLogger("ytdaily").removeHandler(h)
+        window.deleteLater()
