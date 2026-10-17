@@ -49,12 +49,19 @@ Every download is automatically scrubbed of non-content segments (Sponsors, Intr
 
 ---
 
-## 🚀 One-Click Installation
+## ⚡ Get Started
 
-Designed to work across **Arch, Debian, Ubuntu, and Fedora** based distributions. The installer handles system dependencies, Python environment isolation (PEP 668), and shell integration.
+### Arch Linux (AUR)
+```bash
+yay -S ytdaily-git
+```
+Installs `ytdaily` (TUI) and `ytdaily-gui` desktop app system-wide, with updates handled by your AUR helper.
+
+### Other distributions
+Designed to work across **Debian, Ubuntu, and Fedora** based distributions. The installer handles system dependencies, Python environment isolation (PEP 668), and shell integration.
 
 ```bash
-git clone https://github.com/DevXtechnic/Ytdaily.git
+git clone https://github.com/BikramGole/Ytdaily.git
 cd Ytdaily
 chmod +x install.sh
 ./install.sh
