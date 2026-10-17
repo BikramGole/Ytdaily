@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -209,7 +210,8 @@ class SourcesPage(QWidget):
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignLeft)
         self.table.verticalHeader().setVisible(False)
         table_layout.addWidget(self.table)
@@ -275,8 +277,11 @@ class SourcesPage(QWidget):
         self.table.setRowCount(0)
         for row, (source_id, label) in enumerate(sorted(self.items.items(), key=lambda item: item[1].lower())):
             self.table.insertRow(row)
-            self.table.setItem(row, 0, QTableWidgetItem(label))
+            name_item = QTableWidgetItem(label)
+            name_item.setToolTip(label)
+            self.table.setItem(row, 0, name_item)
             identifier = QTableWidgetItem(source_id)
+            identifier.setToolTip(source_id)
             identifier.setData(Qt.ItemDataRole.UserRole, source_id)
             self.table.setItem(row, 1, identifier)
         self.count_label.setText(f"{len(self.items)} tracked {self.kind}{'s' if len(self.items) != 1 else ''}")
@@ -417,10 +422,10 @@ class PlaylistPanel(QWidget):
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignLeft)
         self.table.verticalHeader().setVisible(False)
-        self.table.setColumnWidth(0, 56)
         self.table.itemSelectionChanged.connect(self._update_download_button)
         self.table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignLeft)
         layout.addWidget(self.table, stretch=1)
@@ -506,7 +511,9 @@ class PlaylistPanel(QWidget):
             index_item = QTableWidgetItem(str(index))
             index_item.setData(Qt.ItemDataRole.UserRole, index)
             self.table.setItem(row, 0, index_item)
-            self.table.setItem(row, 1, QTableWidgetItem(entry.get("title", "Untitled")))
+            title_item = QTableWidgetItem(entry.get("title", "Untitled"))
+            title_item.setToolTip(str(entry.get("title", "Untitled")))
+            self.table.setItem(row, 1, title_item)
         self.table.setCurrentCell(0, 0)
         self.table.clearSelection()
         self.overall.setValue(0)
@@ -582,7 +589,9 @@ class HistoryPage(QWidget):
         self.table.setHorizontalHeaderLabels(["Title", "Source", "Saved"])
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self.table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignLeft)
         self.table.verticalHeader().setVisible(False)
         layout.addWidget(self.table, stretch=1)
@@ -593,8 +602,12 @@ class HistoryPage(QWidget):
         self.table.setRowCount(0)
         for row, item in enumerate(items):
             self.table.insertRow(row)
-            self.table.setItem(row, 0, QTableWidgetItem(item["title"]))
-            self.table.setItem(row, 1, QTableWidgetItem(item["source"]))
+            title_item = QTableWidgetItem(item["title"])
+            title_item.setToolTip(item["title"])
+            self.table.setItem(row, 0, title_item)
+            source_item = QTableWidgetItem(item["source"])
+            source_item.setToolTip(item["source"])
+            self.table.setItem(row, 1, source_item)
             self.table.setItem(row, 2, QTableWidgetItem(item["downloaded_at"][:19].replace("T", " ")))
         count = len(items)
         self.count_label.setText(f"{count} download{'s' if count != 1 else ''}")
