@@ -75,6 +75,28 @@ def button(label: str, callback: Callable[[], None], role: str = "") -> QPushBut
     return control
 
 
+def alert(parent: QWidget, icon: QMessageBox.Icon, title: str, text: str) -> None:
+    box = QMessageBox(icon, title, text, QMessageBox.StandardButton.Ok, parent)
+    box.setDefaultButton(QMessageBox.StandardButton.Ok)
+    for button_widget in box.buttons():
+        button_widget.setText(button_widget.text().replace("&", ""))
+    box.exec()
+
+
+def ask(parent: QWidget, icon: QMessageBox.Icon, title: str, text: str) -> bool:
+    box = QMessageBox(
+        icon,
+        title,
+        text,
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        parent,
+    )
+    box.setDefaultButton(QMessageBox.StandardButton.No)
+    for button_widget in box.buttons():
+        button_widget.setText(button_widget.text().replace("&", ""))
+    return box.exec() == QMessageBox.StandardButton.Yes
+
+
 def page_header(parent: QWidget, title: str, subtitle: str) -> QVBoxLayout:
     layout = QVBoxLayout(parent)
     layout.setContentsMargins(32, 28, 32, 24)
@@ -240,13 +262,13 @@ class SourcesPage(QWidget):
         if self.kind == "channel":
             source_id = source_id.lstrip("@")
         if not source_id:
-            QMessageBox.warning(self, f"Add {self.kind}", "Enter the playlist URL." if self.kind == "playlist" else "Enter the channel handle or URL.")
+            alert(self, QMessageBox.Icon.Warning, f"Add {self.kind}", "Enter the playlist URL." if self.kind == "playlist" else "Enter the channel handle or URL.")
             return
         if not label:
-            QMessageBox.warning(self, f"Add {self.kind}", "Enter a display name to list this source.")
+            alert(self, QMessageBox.Icon.Warning, f"Add {self.kind}", "Enter a display name to list this source.")
             return
         if source_id in self.items:
-            QMessageBox.warning(self, f"Add {self.kind}", f"You already track {label}.")
+            alert(self, QMessageBox.Icon.Warning, f"Add {self.kind}", f"You already track {label}.")
             return
         self.items[source_id] = label
         self.state.save_config()
@@ -260,13 +282,7 @@ class SourcesPage(QWidget):
         if row < 0:
             return
         source_id = self.table.item(row, 1).data(Qt.ItemDataRole.UserRole)
-        answer = QMessageBox.question(
-            self,
-            f"Remove {self.kind}",
-            f"Stop tracking {self.items[source_id]}?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
-        if answer != QMessageBox.StandardButton.Yes:
+        if not ask(self, QMessageBox.Icon.Question, f"Remove {self.kind}", f"Stop tracking {self.items[source_id]}?"):
             return
         del self.items[source_id]
         self.state.save_config()
@@ -334,7 +350,7 @@ class SingleDownloadPanel(QWidget):
     def _start(self) -> None:
         url = self.url.text().strip()
         if not url:
-            QMessageBox.warning(self, "URL required", "Paste a YouTube video URL first.")
+            alert(self, QMessageBox.Icon.Warning, "URL required", "Paste a YouTube video URL first.")
             return
         self.log.clear()
         self.progress.setValue(0)
@@ -452,7 +468,7 @@ class PlaylistPanel(QWidget):
     def _fetch(self) -> None:
         url = self.url.text().strip()
         if not url:
-            QMessageBox.warning(self, "URL required", "Paste a YouTube playlist URL first.")
+            alert(self, QMessageBox.Icon.Warning, "URL required", "Paste a YouTube playlist URL first.")
             return
         self.fetch_requested.emit(url)
 
@@ -776,10 +792,10 @@ class SettingsPage(QWidget):
             self.config.validate()
             self.state.save_config()
         except OSError as error:
-            QMessageBox.critical(self, "Could not save settings", str(error))
+            alert(self, QMessageBox.Icon.Critical, "Could not save settings", str(error))
             return
         self.engine_preview.setPlainText(self._engine_summary())
-        QMessageBox.information(self, "Settings saved", "Your settings have been saved.")
+        alert(self, QMessageBox.Icon.Information, "Settings saved", "Your settings have been saved.")
         self.changed.emit()
 
 
@@ -952,7 +968,7 @@ class MainWindow(QMainWindow):
         worker = DownloadWorker(self.downloader, self.scanner, url, is_audio)
         worker.progress.connect(self.download.single.handle_progress)
         if not self._start_job("single", worker, self._download_finished):
-            QMessageBox.information(self, "Job already running", "Wait for the active job to finish or cancel it first.")
+            alert(self, QMessageBox.Icon.Information, "Job already running", "Wait for the active job to finish or cancel it first.")
             self.download.single.start.setEnabled(True)
             self.download.single.cancel.setEnabled(False)
             return
@@ -990,7 +1006,7 @@ class MainWindow(QMainWindow):
 
     def start_playlist_fetch(self, url: str) -> None:
         if self._job_running("playlist"):
-            QMessageBox.information(self, "Busy", "A playlist job is already running. Cancel it first or wait for it.")
+            alert(self, QMessageBox.Icon.Information, "Busy", "A playlist job is already running. Cancel it first or wait for it.")
             return
         self.download.playlist.set_fetching()
         worker = PlaylistFetchWorker(self.scanner, url)
@@ -1004,7 +1020,7 @@ class MainWindow(QMainWindow):
 
     def start_playlist_download(self, url: str, download_type: str, items: object) -> None:
         if self._job_running("playlist"):
-            QMessageBox.information(self, "Busy", "A playlist job is already running. Cancel it first or wait for it.")
+            alert(self, QMessageBox.Icon.Information, "Busy", "A playlist job is already running. Cancel it first or wait for it.")
             return
         item_list = sorted(set(int(index) for index in items)) if items else None
         self.download.playlist.set_downloading()
