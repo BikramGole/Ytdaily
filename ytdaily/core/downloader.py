@@ -502,12 +502,21 @@ class Downloader:
         playlist_url: str,
         download_type: str = "video",
         playlist_items: Optional[List[int]] = None,
+        progress_callback: Optional[ProgressCallback] = None,
+        cancel_event: Optional[threading.Event] = None,
+        show_console: bool = True,
     ) -> Tuple[bool, Optional[Path]]:
         """Download all or selected playlist entries using dual Rich progress."""
         try:
             playlist_info = self.scanner.get_playlist_info(playlist_url)
             if not playlist_info:
-                console.print("[bold red]❌ Could not get playlist information[/bold red]")
+                if show_console:
+                    console.print("[bold red]❌ Could not get playlist information[/bold red]")
+                self._emit_progress(progress_callback, {
+                    "type": "failed",
+                    "title": "Unknown",
+                    "message": "Could not get playlist information",
+                })
                 return False, None
 
             playlist_name = playlist_info["title"]
@@ -515,15 +524,15 @@ class Downloader:
             selected_count = len(set(playlist_items)) if playlist_items is not None else 0
             total_videos = selected_count or playlist_info["video_count"] or 1
 
-            # Summary Panel
-            info_table = Table.grid(padding=(0, 2))
-            info_table.add_column(style="bold cyan", justify="right")
-            info_table.add_column(style="white")
-            info_table.add_row("📚 Playlist:", playlist_name)
-            info_table.add_row("👤 Uploader:", uploader)
-            info_table.add_row("🎬 Videos to Download:", str(total_videos))
-            info_table.add_row("🎯 Type:", f"{'Audio (MP3)' if download_type == 'audio' else 'Video (MP4)'}")
-            console.print(Panel(info_table, title="[bold blue]Starting Playlist Download[/bold blue]", border_style="blue"))
+            if show_console:
+                info_table = Table.grid(padding=(0, 2))
+                info_table.add_column(style="bold cyan", justify="right")
+                info_table.add_column(style="white")
+                info_table.add_row("📚 Playlist:", playlist_name)
+                info_table.add_row("👤 Uploader:", uploader)
+                info_table.add_row("🎬 Videos to Download:", str(total_videos))
+                info_table.add_row("🎯 Type:", f"{'Audio (MP3)' if download_type == 'audio' else 'Video (MP4)'}")
+                console.print(Panel(info_table, title="[bold blue]Starting Playlist Download[/bold blue]", border_style="blue"))
 
             archives_dir = self.config.log_dir / "archives"
             archives_dir.mkdir(parents=True, exist_ok=True)
@@ -550,8 +559,12 @@ class Downloader:
             )
 
             current_video_idx = 1
-            progress = create_playlist_progress()
-            with progress:
+            progress = None
+            overall_task = None
+            current_task = None
+            if show_console:
+                progress = create_playlist_progress()
+                progress.start()
                 overall_task = progress.add_task(
                     f"[bold blue]Overall ({total_videos} videos)[/]",
                     total=100,
@@ -565,55 +578,82 @@ class Downloader:
                     eta="",
                 )
 
-                for _, line in self._read_process_output(process):
-                    p = self.parse_progress(line)
-                    if p:
-                        if p.get("type") == "playlist_progress":
-                            try:
-                                current_video_idx = int(p["current"])
-                                total_videos = int(p["total"])
-                            except ValueError:
-                                pass
-                            progress.update(
-                                current_task,
-                                completed=0,
-                                description=f"[bold green]Item {current_video_idx}/{total_videos}[/]",
-                            )
-                        elif p.get("type") == "download" and "percent" in p:
-                            try:
-                                cur_pct = float(p["percent"])
-                            except ValueError:
-                                cur_pct = 0.0
+            for _, line in self._read_process_output(process, cancel_event):
+                p = self.parse_progress(line)
+                if not p:
+                    continue
+                if p.get("type") == "playlist_progress":
+                    try:
+                        current_video_idx = int(p["current"])
+                        total_videos = int(p["total"])
+                    except ValueError:
+                        pass
+                    if progress_callback:
+                        progress_callback({
+                            "type": "playlist_progress",
+                            "current": current_video_idx,
+                            "total": total_videos,
+                        })
+                    if progress:
+                        progress.update(
+                            current_task,
+                            completed=0,
+                            description=f"[bold green]Item {current_video_idx}/{total_videos}[/]",
+                        )
+                elif p.get("type") == "download" and "percent" in p:
+                    try:
+                        item_pct = float(p["percent"])
+                    except ValueError:
+                        item_pct = 0.0
 
-                            overall_pct = ((current_video_idx - 1) / total_videos * 100) + (cur_pct / total_videos)
-                            speed = p.get("speed", "")
-                            eta = p.get("eta", "")
+                    overall_pct = ((current_video_idx - 1) / total_videos * 100) + (item_pct / total_videos)
+                    speed = p.get("speed", "")
+                    eta = p.get("eta", "")
 
-                            progress.update(
-                                current_task,
-                                completed=cur_pct,
-                                speed=speed,
-                                eta=eta,
-                            )
-                            progress.update(
-                                overall_task,
-                                completed=overall_pct,
-                                description=f"[bold blue]Overall: Video {current_video_idx}/{total_videos}[/]",
-                            )
+                    if progress_callback:
+                        progress_callback({
+                            "type": "playlist_current",
+                            "percent": item_pct,
+                            "overall": overall_pct,
+                            "item": current_video_idx,
+                            "total": total_videos,
+                            "speed": speed,
+                            "eta": eta,
+                        })
+
+                    if progress:
+                        progress.update(current_task, completed=item_pct, speed=speed, eta=eta)
+                        progress.update(
+                            overall_task,
+                            completed=overall_pct,
+                            description=f"[bold blue]Overall: Video {current_video_idx}/{total_videos}[/]",
+                        )
+
+            if progress:
+                progress.stop()
 
             return_code = process.wait()
             has_files = any(playlist_dir.iterdir()) if playlist_dir.exists() else False
 
             if return_code == 0 or (return_code == 1 and has_files):
-                console.print(f"[bold green]✅ Playlist download complete: {playlist_name}[/bold green]")
+                if show_console:
+                    console.print(f"[bold green]✅ Playlist download complete: {playlist_name}[/bold green]")
+                self._emit_progress(progress_callback, {"type": "completed", "title": playlist_name})
                 return True, playlist_dir
             else:
-                console.print(f"[bold red]❌ Playlist download completed with errors/skips[/bold red]")
+                if show_console:
+                    console.print(f"[bold red]❌ Playlist download completed with errors/skips[/bold red]")
+                self._emit_progress(progress_callback, {
+                    "type": "failed",
+                    "title": playlist_name,
+                    "message": f"yt-dlp exited with code {return_code}",
+                })
                 return False, playlist_dir
 
         except Exception as e:
             self.logger.error(f"❌ Error downloading playlist: {e}")
-            console.print(f"[bold red]❌ Error: {e}[/bold red]")
+            if show_console:
+                console.print(f"[bold red]❌ Error: {e}[/bold red]")
             return False, None
 
     def download_videos_parallel(self, download_tasks: List[Tuple[Dict[str, Any], str, str]]) -> int:
