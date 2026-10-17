@@ -303,6 +303,19 @@ def build_stylesheet(theme_key: str) -> str:
     QMenu::item:selected {{ background: {t.surface_high}; }}
     QMenu::item:disabled {{ color: {t.text_dim}; }}
     QMenu::separator {{ height: 1px; background: {t.border_subtle}; margin: 6px 8px; }}
+
+    QMessageBox {{ background: {t.mantle}; border: 1px solid {t.border}; }}
+    QMessageBox QLabel {{ color: {t.text_main}; font-size: 13px; }}
+    QMessageBox QPushButton {{
+        background: {t.surface_high}; color: {t.text_main};
+        border: 1px solid {t.border}; border-radius: 10px;
+        padding: 8px 18px; min-width: 84px; font-weight: 600;
+    }}
+    QMessageBox QPushButton:hover {{ background: {t.surface_highest}; }}
+    QMessageBox QPushButton:default {{ background: {t.accent}; color: {t.accent_on}; border-color: transparent; }}
+    QMessageBox QPushButton:default:hover {{ background: {t.accent_hover}; }}
+    QMessageBox QPushButton:disabled {{ background: {t.surface}; color: {t.text_dim}; }}
+
     QToolTip {{ background: {t.surface_highest}; color: {t.text_main}; border: 1px solid {t.border}; border-radius: 6px; padding: 6px 8px; }}
     QStatusBar {{ background: transparent; color: {t.text_dim}; border-top: 1px solid {t.border_subtle}; }}
     QStatusBar::item {{ border: 0; }}
