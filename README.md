@@ -1,5 +1,5 @@
 # 📺 Ytdaily
-[![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)](http://unlicense.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![Platform: Windows%20%7C%20Linux%20%7C%20macOS-blue.svg)](https://www.python.org/)
 
@@ -12,7 +12,7 @@
 ### 🖥️ Core Interface
 | Main Menu | Statistics Dashboard |
 | :---: | :---: |
-| ![Main Menu](screenshots/main_menu.png) | ![Statistics](screenshots/statistics.png) |
+| ![Main Menu](screenshots/main_menu.svg) | ![Statistics](screenshots/statistics.svg) |
 
 ### 🚀 Smart Tracking & Downloads
 | Configuration Scan | Scan Results |
@@ -27,6 +27,22 @@
 | Customizable Settings | Playlist Management |
 | :---: | :---: |
 | ![Settings](screenshots/settings.png) | ![Playlist Management](screenshots/playlist_mgmt.png) |
+
+### 🖥️ Desktop GUI (PySide6)
+
+The redesigned desktop app ships with a Catppuccin Mocha default theme — switchable from five themes in Settings.
+
+| Dashboard | Sources |
+| :---: | :---: |
+| ![Dashboard](screenshots/gui-dashboard.png) | ![Channels](screenshots/gui-channels.png) |
+
+| Downloads (single & playlist) | Searchable history |
+| :---: | :---: |
+| ![Download](screenshots/gui-download.png) | ![History](screenshots/gui-history.png) |
+
+| Playlist picker with selective download | Themes & settings |
+| :---: | :---: |
+| ![Playlist picker](screenshots/gui-playlist.png) | ![Settings](screenshots/gui-settings.png) |
 
 ---
 
@@ -130,4 +146,4 @@ On Linux or macOS, after installing the Python requirements, use `python -m ytda
 
 ## ⚖️ License
 
-[Unlicense](LICENSE) (Public Domain) - Free to use, modify, and distribute for any purpose.
+[MIT](LICENSE) - Free to use, modify, and distribute under the terms of the MIT license.
