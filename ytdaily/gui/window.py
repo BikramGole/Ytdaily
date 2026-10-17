@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Dict, Optional
 
-from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtCore import QSettings, Qt, QThread, Signal
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -23,12 +23,13 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QPushButton,
     QProgressBar,
     QScrollArea,
+    QSizePolicy,
     QSpinBox,
-    QSplitter,
     QStackedWidget,
     QStatusBar,
     QSystemTrayIcon,
@@ -43,35 +44,11 @@ from ytdaily.config import Config, SUPPORTED_RESOLUTIONS
 from ytdaily.core.downloader import Downloader
 from ytdaily.core.scanner import Scanner
 from ytdaily.core.state import StateManager
+from ytdaily.gui.themes import THEMES, Theme, build_stylesheet, rgba
 from ytdaily.gui.workers import AutoDownloadWorker, DownloadWorker
 from ytdaily.utils.browser import SUPPORTED_BROWSERS, detect_browser
 from ytdaily.utils.logging import setup_logging
 from ytdaily.utils.system import get_disk_space_info
-
-
-APP_STYLE = """
-QMainWindow { background: #171923; color: #edf2f7; }
-QWidget { font-family: Segoe UI, Arial, sans-serif; font-size: 13px; }
-QListWidget { background: #202330; border: 0; color: #cbd5e0; padding: 8px; }
-QListWidget::item { padding: 11px 14px; border-radius: 6px; }
-QListWidget::item:selected { background: #4c51bf; color: white; }
-QLabel#title { font-size: 24px; font-weight: 700; color: #f7fafc; }
-QLabel#subtitle { color: #a0aec0; }
-QFrame#card, QGroupBox { background: #242936; border: 1px solid #3a4052; border-radius: 9px; }
-QGroupBox { margin-top: 12px; padding: 14px; font-weight: 600; color: #e2e8f0; }
-QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 4px; }
-QPushButton { background: #4c51bf; color: white; border: 0; border-radius: 6px; padding: 8px 13px; font-weight: 600; }
-QPushButton:hover { background: #5a67d8; }
-QPushButton:disabled { background: #4a5568; color: #a0aec0; }
-QPushButton#secondary { background: #3a4052; }
-QPushButton#danger { background: #c53030; }
-QLineEdit, QComboBox, QSpinBox, QTextEdit, QTableWidget { background: #202330; color: #edf2f7; border: 1px solid #4a5568; border-radius: 5px; padding: 6px; }
-QTableWidget { gridline-color: #3a4052; }
-QHeaderView::section { background: #2d3748; color: #e2e8f0; border: 0; padding: 7px; font-weight: 600; }
-QProgressBar { border: 1px solid #4a5568; border-radius: 5px; text-align: center; background: #202330; }
-QProgressBar::chunk { background: #48bb78; border-radius: 4px; }
-QStatusBar { background: #202330; color: #cbd5e0; }
-"""
 
 
 def button(label: str, callback: Callable[[], None], role: str = "") -> QPushButton:
@@ -90,6 +67,7 @@ class DashboardPage(QWidget):
         self.config, self.state = config, state
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 28, 28, 28)
+        layout.setSpacing(14)
         title = QLabel("Ytdaily")
         title.setObjectName("title")
         layout.addWidget(title)
@@ -127,11 +105,12 @@ class DashboardPage(QWidget):
         frame = QFrame()
         frame.setObjectName("card")
         view = QVBoxLayout(frame)
+        view.setContentsMargins(18, 16, 18, 16)
+        view.setSpacing(2)
         heading_label = QLabel(heading)
-        heading_label.setObjectName("subtitle")
+        heading_label.setObjectName("cardLabel")
         value = QLabel("—")
-        value.setObjectName("title")
-        value.setProperty("value", True)
+        value.setObjectName("cardValue")
         view.addWidget(heading_label)
         view.addWidget(value)
         return frame
@@ -258,6 +237,7 @@ class DownloadPage(QWidget):
         layout.addWidget(self.status)
         layout.addWidget(self.progress)
         self.log = QTextEdit()
+        self.log.setObjectName("terminal")
         self.log.setReadOnly(True)
         self.log.setPlaceholderText("Download progress will appear here.")
         layout.addWidget(self.log, stretch=1)
@@ -327,45 +307,128 @@ class HistoryPage(QWidget):
 
 class SettingsPage(QWidget):
     changed = Signal()
+    theme_changed = Signal(str)
 
-    def __init__(self, config: Config, state: StateManager) -> None:
+    def __init__(self, config: Config, state: StateManager, current_theme: str) -> None:
         super().__init__()
         self.config, self.state = config, state
+        self._theme_buttons: Dict[str, QPushButton] = {}
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 28, 28, 28)
+        layout.setSpacing(14)
         title = QLabel("Settings")
         title.setObjectName("title")
         layout.addWidget(title)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         content = QWidget()
-        form = QFormLayout(content)
-        self.video_dir = self._path_field(form, "Video folder", config.base_video_dir)
-        self.audio_dir = self._path_field(form, "Audio folder", config.base_audio_dir)
-        self.playlist_dir = self._path_field(form, "Playlist folder", config.base_playlist_dir)
-        self.podcast_dir = self._path_field(form, "Podcast folder", config.base_podcast_dir)
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(14)
+
+        section = QLabel("Appearance & themes")
+        section.setObjectName("sectionTitle")
+        content_layout.addWidget(section)
+        cards = QGridLayout()
+        cards.setSpacing(14)
+        for index, theme in enumerate(THEMES.values()):
+            cards.addWidget(self._theme_card(theme), 0, index)
+        content_layout.addLayout(cards)
+        self.sync_theme(current_theme)
+
+        content_layout.addWidget(self._engine_card())
+        engine_section = QLabel("Engine profile")
+        engine_section.setObjectName("sectionTitle")
+        content_layout.addWidget(engine_section)
+        self.engine_preview = QTextEdit()
+        self.engine_preview.setObjectName("terminal")
+        self.engine_preview.setReadOnly(True)
+        self.engine_preview.setFixedHeight(110)
+        self.engine_preview.setPlainText(self._engine_summary())
+        content_layout.addWidget(self.engine_preview)
+        content_layout.addStretch()
+
+        scroll.setWidget(content)
+        layout.addWidget(scroll)
+
+    def _theme_card(self, theme: Theme) -> QPushButton:
+        card = QPushButton()
+        card.setObjectName("themeCard")
+        card.setCheckable(True)
+        card.setAutoExclusive(True)
+        card.setCursor(Qt.CursorShape.PointingHandCursor)
+        card.setMinimumHeight(94)
+        card.setMinimumWidth(200)
+        card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        view = QVBoxLayout(card)
+        view.setContentsMargins(14, 12, 14, 12)
+        view.setSpacing(8)
+        name = QLabel(theme.name)
+        name.setObjectName("themeCardName")
+        view.addWidget(name)
+        swatches = QHBoxLayout()
+        swatches.setSpacing(6)
+        for color in theme.swatches:
+            swatch = QLabel()
+            swatch.setFixedSize(20, 20)
+            swatch.setStyleSheet(
+                f"background: {color}; border-radius: 10px; border: 1px solid {theme.border_subtle};"
+            )
+            swatches.addWidget(swatch)
+        swatches.addStretch()
+        view.addLayout(swatches)
+        card.clicked.connect(lambda _checked=False, key=theme.key: self.theme_changed.emit(key))
+        self._theme_buttons[theme.key] = card
+        return card
+
+    def sync_theme(self, theme_key: str) -> None:
+        for key, card in self._theme_buttons.items():
+            selected = key == theme_key
+            card.setChecked(selected)
+            if card.property("selected") != selected:
+                card.setProperty("selected", selected)
+                card.style().unpolish(card)
+                card.style().polish(card)
+
+    def _engine_card(self) -> QGroupBox:
+        box = QGroupBox("Engine parameters")
+        form = QFormLayout(box)
+        self.video_dir = self._path_field(form, "Video folder", self.config.base_video_dir)
+        self.audio_dir = self._path_field(form, "Audio folder", self.config.base_audio_dir)
+        self.playlist_dir = self._path_field(form, "Playlist folder", self.config.base_playlist_dir)
+        self.podcast_dir = self._path_field(form, "Podcast folder", self.config.base_podcast_dir)
         self.resolution = QComboBox()
         self.resolution.addItems(SUPPORTED_RESOLUTIONS)
-        self.resolution.setCurrentText(config.max_resolution)
+        self.resolution.setCurrentText(self.config.max_resolution)
         self.browser = QComboBox()
         self.browser.addItems(["auto", "none", *SUPPORTED_BROWSERS])
-        self.browser.setCurrentText(config.browser)
+        self.browser.setCurrentText(self.config.browser)
         self.parallel = QSpinBox()
         self.parallel.setRange(1, 10)
-        self.parallel.setValue(config.max_parallel_downloads)
+        self.parallel.setValue(self.config.max_parallel_downloads)
         self.cleanup = QSpinBox()
         self.cleanup.setRange(1, 3650)
-        self.cleanup.setValue(config.cleanup_days)
+        self.cleanup.setValue(self.config.cleanup_days)
         self.filter_shorts = QCheckBox("Skip videos shorter than one minute")
-        self.filter_shorts.setChecked(config.filter_shorts)
+        self.filter_shorts.setChecked(self.config.filter_shorts)
         form.addRow("Maximum resolution", self.resolution)
         form.addRow("Cookie browser", self.browser)
         form.addRow("Parallel downloads", self.parallel)
         form.addRow("Retention days", self.cleanup)
         form.addRow("Shorts filter", self.filter_shorts)
         form.addRow(button("Save settings", self.save))
-        scroll.setWidget(content)
-        layout.addWidget(scroll)
+        return box
+
+    def _engine_summary(self) -> str:
+        return (
+            f"engine    bestvideo[height<={self.resolution.currentText()}]+bestaudio/best"
+            f" -> {self.config.output_format}\n"
+            f"parallel  {self.parallel.value()} concurrent jobs"
+            f"   ·   shorts {'skipped' if self.filter_shorts.isChecked() else 'kept'}"
+            f"   ·   {self.config.cleanup_days}-day retention\n"
+            f"video out {self.config.base_video_dir}\n"
+            f"audio out {self.config.base_audio_dir}"
+        )
 
     def _path_field(self, form: QFormLayout, label: str, value: Path) -> QLineEdit:
         line = QLineEdit(str(value))
@@ -395,6 +458,7 @@ class SettingsPage(QWidget):
             self.config.ensure_directories()
             self.config.validate()
             self.state.save_config()
+            self.engine_preview.setPlainText(self._engine_summary())
         except OSError as error:
             QMessageBox.critical(self, "Could not save settings", str(error))
             return
@@ -418,34 +482,79 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Ytdaily")
         self.setMinimumSize(980, 650)
         self.resize(1180, 760)
-        self.setStyleSheet(APP_STYLE)
+        stored = QSettings("Ytdaily", "GUI").value("theme", "catppuccin-mocha", type=str)
+        self.theme_key = stored if stored in THEMES else "catppuccin-mocha"
         self._build_ui()
         self._build_tray()
+        self.apply_theme(self.theme_key)
+
+    def apply_theme(self, theme_key: str) -> None:
+        if theme_key not in THEMES:
+            theme_key = "catppuccin-mocha"
+        self.theme_key = theme_key
+        theme = THEMES[theme_key]
+        self.setStyleSheet(build_stylesheet(theme_key))
+        self.logo.setStyleSheet(
+            f"background: {rgba(theme.accent, 15)}; color: {theme.accent};"
+            " border-radius: 12px; font-weight: 700; font-size: 15px;"
+        )
+        self.settings.sync_theme(theme_key)
+        QSettings("Ytdaily", "GUI").setValue("theme", theme_key)
 
     def _build_ui(self) -> None:
-        root = QSplitter()
-        root.setChildrenCollapsible(False)
+        root = QHBoxLayout()
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+        central = QWidget()
+        central.setLayout(root)
+
+        self.sidebar = QWidget()
+        self.sidebar.setObjectName("sidebar")
+        self.sidebar.setFixedWidth(236)
+        self.sidebar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        rail = QVBoxLayout(self.sidebar)
+        rail.setContentsMargins(20, 24, 20, 20)
+        rail.setSpacing(18)
+        brand = QHBoxLayout()
+        self.logo = QLabel("▶")
+        self.logo.setObjectName("logo")
+        self.logo.setFixedSize(38, 38)
+        self.logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        brand.addWidget(self.logo)
+        brand.addSpacing(6)
+        brand_name = QLabel("Ytdaily")
+        brand_name.setObjectName("brandTitle")
+        brand.addWidget(brand_name)
+        brand.addStretch()
+        rail.addLayout(brand)
         self.navigation = QListWidget()
+        self.navigation.setObjectName("nav")
         self.navigation.addItems(["Dashboard", "Channels", "Playlists", "Single download", "History", "Settings"])
-        self.navigation.setFixedWidth(190)
+        self.navigation.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        rail.addWidget(self.navigation, stretch=1)
+        footer = QLabel(f"Cookie browser: {detect_browser()}")
+        footer.setObjectName("sidebarFooter")
+        footer.setWordWrap(True)
+        rail.addWidget(footer)
+
         self.pages = QStackedWidget()
+        self.pages.setObjectName("workspace")
         self.dashboard = DashboardPage(self.config, self.state)
         self.channels = SourcesPage(self.state, "channel")
         self.playlists = SourcesPage(self.state, "playlist")
         self.download = DownloadPage(self.start_download, self.cancel_active_worker)
         self.history = HistoryPage(self.state)
-        self.settings = SettingsPage(self.config, self.state)
+        self.settings = SettingsPage(self.config, self.state, self.theme_key)
         for page in (self.dashboard, self.channels, self.playlists, self.download, self.history, self.settings):
             self.pages.addWidget(page)
-        root.addWidget(self.navigation)
-        root.addWidget(self.pages)
-        root.setStretchFactor(1, 1)
-        self.setCentralWidget(root)
+        root.addWidget(self.sidebar)
+        root.addWidget(self.pages, stretch=1)
+        self.setCentralWidget(central)
         self.setStatusBar(QStatusBar())
-        self.statusBar().showMessage(f"Cookie browser: {detect_browser()}")
         self.navigation.currentRowChanged.connect(self.change_page)
         self.navigation.setCurrentRow(0)
         self.dashboard.run_requested.connect(self.start_auto_download)
+        self.settings.theme_changed.connect(self.apply_theme)
         for page in (self.channels, self.playlists, self.settings):
             page.changed.connect(self.refresh_all)
 
@@ -461,7 +570,7 @@ class MainWindow(QMainWindow):
         run_action.triggered.connect(self.start_auto_download)
         quit_action = QAction("Quit", self)
         quit_action.triggered.connect(QApplication.quit)
-        menu = self.tray.contextMenu() or __import__("PySide6.QtWidgets", fromlist=["QMenu"]).QMenu(self)
+        menu = self.tray.contextMenu() or QMenu(self)
         menu.addAction(show_action)
         menu.addAction(run_action)
         menu.addSeparator()
