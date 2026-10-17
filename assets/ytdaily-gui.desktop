@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Ytdaily
+GenericName=YouTube Downloader
+Comment=Track channels and playlists and download new videos automatically
+Exec=ytdaily-gui
+Icon=ytdaily
+Categories=Network;AudioVideo;
+Keywords=youtube;download;video;audio;podcast;
+StartupNotify=true
+StartupWMClass=Ytdaily
+Terminal=false
