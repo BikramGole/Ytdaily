@@ -4,6 +4,7 @@ Comprehensive unit and integration tests for Ytdaily.
 
 import os
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -247,6 +248,97 @@ class TestYtdailyCore(unittest.TestCase):
 
         browser = detect_browser()
         self.assertIsInstance(browser, str)
+
+
+class TestBracketTitleGlobSafety(unittest.TestCase):
+    """Brackets in YouTube titles are glob metacharacters and must be escaped."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.test_root = Path(self.temp_dir.name)
+        self.config = Config(
+            base_video_dir=self.test_root / "Videos",
+            base_audio_dir=self.test_root / "Music",
+            base_playlist_dir=self.test_root / "Playlists",
+            base_podcast_dir=self.test_root / "Podcasts",
+            log_dir=self.test_root / "logs",
+        )
+        self.state = StateManager(self.config)
+        self.scanner = Scanner(self.config, self.state)
+        self.downloader = Downloader(self.config, self.state, self.scanner)
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def test_cleanup_subtitle_files_removes_only_this_videos_subtitles(self):
+        video_dir = self.config.current_video_dir
+        video_dir.mkdir(parents=True, exist_ok=True)
+
+        target = video_dir / "Launch [Official] Video.en.srt"
+        other = video_dir / "Other Channel.en.srt"
+        target.write_text("[Script Info]", encoding="utf-8")
+        other.write_text("[Script Info]", encoding="utf-8")
+        old_time = time.time() - 2 * 86400
+        os.utime(other, (old_time, old_time))
+
+        self.downloader.cleanup_subtitle_files("Launch [Official] Video")
+
+        self.assertFalse(target.exists(), "Expected this video's subtitle file to be removed")
+        self.assertTrue(other.exists(), "Subtitle files owned by other videos must not be removed")
+
+    def test_check_existing_download_matches_bracketed_titles(self):
+        video_dir = self.config.current_video_dir
+        video_dir.mkdir(parents=True, exist_ok=True)
+        (video_dir / "Launch [Official] Video.mp4").write_bytes(b"x" * (1024 * 1024 + 1))
+        (video_dir / "Plain Video.mp4").write_bytes(b"x" * (1024 * 1024 + 1))
+
+        can_resume, percent = self.downloader.check_existing_download(
+            {"id": "abc", "title": "Launch [Official] Video"}, "video"
+        )
+        self.assertEqual((can_resume, percent), (True, 50))
+
+        can_resume, percent = self.downloader.check_existing_download({"id": "abc", "title": "Plain Video"}, "video")
+        self.assertEqual((can_resume, percent), (True, 50))
+
+
+class TestCorruptedStateFileRecovery(unittest.TestCase):
+    """Corrupted (non-dict) JSON state files must reset to defaults instead of poisoning state."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.test_root = Path(self.temp_dir.name)
+        self.config = Config(
+            base_video_dir=self.test_root / "Videos",
+            base_audio_dir=self.test_root / "Music",
+            base_playlist_dir=self.test_root / "Playlists",
+            base_podcast_dir=self.test_root / "Podcasts",
+            log_dir=self.test_root / "logs",
+        )
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def _corrupt(self, attr: str):
+        path = getattr(self.config, attr)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("[1, 2, 3]", encoding="utf-8")
+
+    def test_corrupted_channel_history_resets_to_empty(self):
+        self._corrupt("channel_history_path")
+        new_state = StateManager(self.config)
+        self.assertIsInstance(new_state.channel_history, dict)
+        self.assertFalse(new_state.is_video_downloaded("chan", "vid"))
+
+    def test_corrupted_resume_state_resets_to_empty(self):
+        self._corrupt("resume_state_path")
+        new_state = StateManager(self.config)
+        self.assertIsInstance(new_state.resume_state, dict)
+        self.assertIsNone(new_state.get_resume_state("video", "vid"))
+
+    def test_corrupted_download_history_resets_to_empty(self):
+        self._corrupt("download_log_path")
+        new_state = StateManager(self.config)
+        self.assertIsInstance(new_state.download_history, dict)
 
 
 if __name__ == "__main__":
