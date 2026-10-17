@@ -227,9 +227,9 @@ def build_stylesheet(theme_key: str) -> str:
 
     QGroupBox {{
         background: {t.surface}; border: 1px solid {t.border_subtle};
-        border-radius: {t.radius_md}px; margin-top: 14px; padding: 16px 14px 12px 14px; font-weight: 600;
+        border-radius: {t.radius_md}px; margin-top: 28px; padding: 16px 14px 12px 14px; font-weight: 600;
     }}
-    QGroupBox::title {{ subcontrol-origin: margin; left: 12px; top: 2px; padding: 0 6px; color: {t.text_muted}; font-size: 12px; }}
+    QGroupBox::title {{ subcontrol-origin: margin; subcontrol-position: top left; left: 0px; top: 6px; padding: 0 4px; color: {t.text_muted}; font-size: 12px; font-weight: 600; }}
 
     QLineEdit, QComboBox, QSpinBox {{
         background: {t.mantle}; color: {t.text_main}; border: 1px solid {t.border_subtle};
