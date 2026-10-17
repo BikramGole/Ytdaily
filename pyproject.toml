@@ -15,3 +15,17 @@ ytdaily-gui = "ytdaily.gui.main:main"
 
 [tool.setuptools.packages.find]
 include = ["ytdaily*"]
+
+[tool.setuptools.package-data]
+"ytdaily.gui" = ["icon.png"]
+
+[tool.setuptools.data-files]
+"share/applications" = ["assets/ytdaily-gui.desktop"]
+"share/icons/hicolor/scalable/apps" = ["assets/icons/hicolor/scalable/apps/ytdaily.svg"]
+"share/icons/hicolor/512x512/apps" = ["assets/icons/hicolor/512x512/apps/ytdaily.png"]
+"share/icons/hicolor/256x256/apps" = ["assets/icons/hicolor/256x256/apps/ytdaily.png"]
+"share/icons/hicolor/128x128/apps" = ["assets/icons/hicolor/128x128/apps/ytdaily.png"]
+"share/icons/hicolor/64x64/apps" = ["assets/icons/hicolor/64x64/apps/ytdaily.png"]
+"share/icons/hicolor/48x48/apps" = ["assets/icons/hicolor/48x48/apps/ytdaily.png"]
+"share/icons/hicolor/32x32/apps" = ["assets/icons/hicolor/32x32/apps/ytdaily.png"]
+"share/icons/hicolor/16x16/apps" = ["assets/icons/hicolor/16x16/apps/ytdaily.png"]
