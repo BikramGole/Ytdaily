@@ -52,6 +52,7 @@ Every download is automatically scrubbed of non-content segments (Sponsors, Intr
 ## ⚡ Get Started
 
 ### Arch Linux (AUR)
+> **TODO:** AUR account creation is suspended, so `ytdaily-git` is not published yet. Once registrations resume, the package will go live and this will work:
 ```bash
 yay -S ytdaily-git
 ```
