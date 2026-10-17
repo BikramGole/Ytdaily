@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
 from PySide6.QtCore import QSettings, Qt, QThread, Signal
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -73,6 +73,9 @@ def button(label: str, callback: Callable[[], None], role: str = "") -> QPushBut
         control.setObjectName(role)
     control.clicked.connect(callback)
     return control
+
+
+ICON_PATH = Path(__file__).parent / "icon.png"
 
 
 def alert(parent: QWidget, icon: QMessageBox.Icon, title: str, text: str) -> None:
@@ -826,6 +829,8 @@ class MainWindow(QMainWindow):
         self._jobs: Dict[str, tuple] = {}
 
         self.setWindowTitle("Ytdaily")
+        if ICON_PATH.exists():
+            self.setWindowIcon(QIcon(str(ICON_PATH)))
         self.setMinimumSize(980, 650)
         self.resize(1180, 760)
         self.theme_key = QSettings("Ytdaily", "GUI").value("theme", "catppuccin-mocha", type=str)
@@ -917,6 +922,7 @@ class MainWindow(QMainWindow):
             self.tray = None
             return
         self.tray = QSystemTrayIcon(self)
+        self.tray.setIcon(self.windowIcon())
         self.tray.setToolTip("Ytdaily")
         show_action = QAction("Show Ytdaily", self)
         show_action.triggered.connect(self.showNormal)
