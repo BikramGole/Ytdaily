@@ -144,6 +144,18 @@ On Linux or macOS, after installing the Python requirements, use `python -m ytda
 
 ---
 
+## Star History
+
+<a href="https://star-history.com/#BikramGole/Ytdaily&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=BikramGole/Ytdaily&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=BikramGole/Ytdaily&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=BikramGole/Ytdaily&type=Date" />
+ </picture>
+</a>
+
+---
+
 ## ⚖️ License
 
 [MIT](LICENSE) - Free to use, modify, and distribute under the terms of the MIT license.
