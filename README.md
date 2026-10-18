@@ -144,6 +144,10 @@ On Linux or macOS, after installing the Python requirements, use `python -m ytda
 
 ---
 
+## ⚖️ License
+
+[MIT](LICENSE) - Free to use, modify, and distribute under the terms of the MIT license.
+
 ## Star History
 
 <a href="https://star-history.com/#BikramGole/Ytdaily&Date">
@@ -155,7 +159,3 @@ On Linux or macOS, after installing the Python requirements, use `python -m ytda
 </a>
 
 ---
-
-## ⚖️ License
-
-[MIT](LICENSE) - Free to use, modify, and distribute under the terms of the MIT license.
