@@ -149,9 +149,14 @@ class AutoDownloadWorker(QObject):
                 return
             self.status.emit(f"Scanning {source_name}…")
             source_url = source_id if source_type == "playlist" or source_id.startswith("http") else f"https://www.youtube.com/@{source_id}/videos"
+            known_last = self.state.download_history.get(
+                "playlists" if source_type == "playlist" else "channels", {}
+            ).get(source_id)
             for item in self.scanner.get_all_recent_videos(source_url, source_name, limit, silent=True):
-                if self.state.is_video_downloaded(source_id, item["id"]):
-                    continue
+                if self.state.is_video_downloaded(source_id, item["id"]) or item["id"] == known_last:
+                    if first_run:
+                        continue
+                    break
                 if self.config.filter_shorts and item.get("duration", 0) and item["duration"] < 60:
                     continue
                 tasks.append((item, source_id, source_name, source_type))
