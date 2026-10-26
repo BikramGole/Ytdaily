@@ -191,10 +191,17 @@ class StateManager:
                     v["id"] for v in self.channel_history["channels"][channel_handle_or_url]["downloaded_videos"]
                 ]
                 if video_id not in existing_ids:
+                    video_url = video_info.get("url") or video_info.get("webpage_url")
+                    if not video_url:
+                        if "youtube" in channel_handle_or_url or "youtu.be" in channel_handle_or_url:
+                            video_url = f"https://www.youtube.com/watch?v={video_id}"
+                        else:
+                            video_url = channel_handle_or_url
+
                     self.channel_history["channels"][channel_handle_or_url]["downloaded_videos"].append({
-                        "id": video_id,
+                        "id": str(video_id),
                         "title": video_info.get("title", "Unknown"),
-                        "url": video_info.get("url", f"https://www.youtube.com/watch?v={video_id}"),
+                        "url": video_url,
                         "downloaded_at": datetime.now().isoformat(),
                     })
                     # Keep maximum 1000 items per source
