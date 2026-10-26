@@ -4,6 +4,7 @@ YouTube channel and playlist scanner with video gap detection.
 
 import json
 import logging
+import re
 import subprocess
 import time
 from typing import Dict, Any, List, Optional, Tuple
@@ -58,9 +59,9 @@ class Scanner:
                             continue
                         try:
                             data = json.loads(line)
-                            video_id = data.get("id", "unknown")
-                            title = data.get("title", "Unknown")
-                            uploader = data.get("uploader", source_name)
+                            video_id = str(data.get("id", "unknown"))
+                            title = data.get("title") or data.get("description") or f"Item {position}"
+                            uploader = data.get("uploader") or data.get("channel") or data.get("creator") or source_name
 
                             duration = data.get("duration", 0)
                             if not duration:
@@ -68,10 +69,17 @@ class Scanner:
                             if not duration:
                                 duration = 0
 
+                            entry_url = data.get("url") or data.get("webpage_url")
+                            if not entry_url or not str(entry_url).startswith("http"):
+                                if "youtube" in url or "youtu.be" in url:
+                                    entry_url = f"https://www.youtube.com/watch?v={video_id}"
+                                else:
+                                    entry_url = url
+
                             videos.append({
                                 "id": video_id,
                                 "title": title,
-                                "url": f"https://www.youtube.com/watch?v={video_id}",
+                                "url": entry_url,
                                 "uploader": uploader,
                                 "duration": duration,
                                 "duration_formatted": format_duration(duration),
@@ -151,10 +159,11 @@ class Scanner:
                             except (ValueError, TypeError):
                                 duration = 0
 
+                            entry_url = f"https://www.youtube.com/watch?v={video_id}" if ("youtube" in url or "youtu.be" in url) else url
                             videos.append({
-                                "id": video_id,
+                                "id": str(video_id),
                                 "title": title,
-                                "url": f"https://www.youtube.com/watch?v={video_id}",
+                                "url": entry_url,
                                 "uploader": uploader,
                                 "duration": duration,
                                 "duration_formatted": format_duration(duration),
@@ -184,16 +193,19 @@ class Scanner:
             if result.returncode == 0 and result.stdout.strip():
                 data = json.loads(result.stdout.strip().split("\n")[0])
                 duration = data.get("duration", 0) or 0
+                title = data.get("title") or data.get("description") or f"Video {data.get('id', '')}"
+                uploader = data.get("uploader") or data.get("channel") or data.get("creator") or data.get("uploader_id") or "Unknown"
+                resolved_url = data.get("webpage_url") or data.get("url") or video_url
                 return {
-                    "id": data.get("id", ""),
-                    "title": data.get("title", "Unknown Title"),
-                    "uploader": data.get("uploader", "Unknown Uploader"),
+                    "id": str(data.get("id", "")),
+                    "title": title,
+                    "uploader": uploader,
                     "duration": duration,
                     "duration_formatted": format_duration(duration),
                     "thumbnail": data.get("thumbnail", ""),
                     "view_count": data.get("view_count", 0),
                     "upload_date": data.get("upload_date", ""),
-                    "url": f"https://www.youtube.com/watch?v={data.get('id', '')}",
+                    "url": resolved_url,
                 }
         except Exception as e:
             self.logger.warning(f"⚠️ Could not fetch video info for {video_url}: {e}")
@@ -267,6 +279,8 @@ class Scanner:
 
     def check_subtitles_available(self, video_url: str) -> bool:
         """Check if subtitles are available to avoid 429 errors."""
+        if not re.search(r'(?:youtube\.com|youtu\.be)', video_url, re.IGNORECASE):
+            return False
         try:
             cmd = [
                 "yt-dlp",
@@ -292,9 +306,10 @@ class Scanner:
     def process_channel_auto(self, handle: str, display_name: str) -> List[Tuple[Dict[str, Any], str, str]]:
         """Queue only the newest video from a channel when not yet downloaded."""
         download_tasks = []
+        channel_url = handle if handle.startswith("http") else f"https://www.youtube.com/@{handle}/videos"
         with console.status(f"[bold blue]🔍 Checking {display_name}...[/]"):
             recent_videos = self.get_all_recent_videos(
-                f"https://www.youtube.com/@{handle}/videos",
+                channel_url,
                 display_name,
                 max_videos=1,
                 silent=True,
@@ -389,9 +404,9 @@ class Scanner:
             return []
 
         target_url = (
-            f"https://www.youtube.com/@{handle_or_url}/videos"
-            if item_type == "channel"
-            else handle_or_url
+            handle_or_url
+            if handle_or_url.startswith("http") or item_type != "channel"
+            else f"https://www.youtube.com/@{handle_or_url}/videos"
         )
 
         with console.status(f"[bold blue]🔍 Scanning {display_name}...[/]"):
