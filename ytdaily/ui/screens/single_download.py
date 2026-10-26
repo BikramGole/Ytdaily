@@ -20,7 +20,7 @@ def download_single_video_interactive(downloader: Downloader, scanner: Scanner) 
     console.print(Rule("[bold cyan]🎬 Single Video Download[/bold cyan]"))
     console.print("")
 
-    url = ask_string("Enter YouTube video URL (or press Enter to cancel):", allow_empty=True)
+    url = ask_string("Enter video URL (or press Enter to cancel):", allow_empty=True)
     if not url:
         return
 
@@ -75,7 +75,7 @@ def download_single_audio_interactive(downloader: Downloader, scanner: Scanner) 
     console.print(Rule("[bold magenta]🎧 Single Audio Download (320kbps MP3)[/bold magenta]"))
     console.print("")
 
-    url = ask_string("Enter YouTube video URL (or press Enter to cancel):", allow_empty=True)
+    url = ask_string("Enter video or audio URL (or press Enter to cancel):", allow_empty=True)
     if not url:
         return
 
@@ -131,7 +131,7 @@ def download_playlist_interactive(
     console.print(Rule("[bold blue]📚 Interactive Playlist Download[/bold blue]"))
     console.print("")
 
-    url = ask_string("Enter YouTube playlist URL (or press Enter to cancel):", allow_empty=True)
+    url = ask_string("Enter playlist or collection URL (or press Enter to cancel):", allow_empty=True)
     if not url:
         return
 
