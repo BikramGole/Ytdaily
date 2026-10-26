@@ -148,8 +148,8 @@ class Downloader:
     def cleanup_subtitle_files(self, video_title: str) -> None:
         """Clean up temporary subtitle files after embedding."""
         try:
-            clean_title = re.sub(r'[<>:"/\\|?*]', '_', video_title)
-            clean_title = re.sub(r'\s+', ' ', clean_title).strip()
+            clean_title = re.sub(r'[<>:"/\\|?*]', '_', video_title or "media")
+            clean_title = re.sub(r'\s+', ' ', clean_title).strip() or "media"
             escaped_title = glob.escape(clean_title)
 
             subtitle_patterns = [
@@ -194,8 +194,8 @@ class Downloader:
     def check_existing_download(self, video_info: Dict[str, Any], download_type: str = "video") -> Tuple[bool, int]:
         """Check if download exists and can be resumed. Returns (can_resume, progress_percent)."""
         try:
-            video_title = video_info.get("title", "Unknown")
-            clean_title = re.sub(r'[<>:"/\\|?*]', '_', video_title)
+            video_title = video_info.get("title") or str(video_info.get("id", "Unknown"))
+            clean_title = re.sub(r'[<>:"/\\|?*]', '_', video_title).strip() or str(video_info.get("id", "media"))
             escaped_title = glob.escape(clean_title)
 
             if download_type == "video":
