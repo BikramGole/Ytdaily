@@ -10,6 +10,11 @@ from ytdaily.config import Config
 SPONSORBLOCK_CATEGORIES = "sponsor,intro,outro,selfpromo,preview,interaction"
 
 
+def is_youtube_url(url: str) -> bool:
+    """Check if a URL belongs to YouTube."""
+    return bool(re.search(r'(?:youtube\.com|youtu\.be)', url, re.IGNORECASE))
+
+
 def build_video_download_command(
     config: Config,
     video_url: str,
@@ -21,13 +26,18 @@ def build_video_download_command(
     output_template = str(output_dir / "%(title)s.%(ext)s")
     cmd = [
         "yt-dlp",
-        "-f", f"bestvideo[height<={config.max_resolution}]+bestaudio/best[height<={config.max_resolution}]",
+        "-f", f"bestvideo[height<={config.max_resolution}]+bestaudio/best[height<={config.max_resolution}]/bestvideo+bestaudio/best",
         "--merge-output-format", "mp4",
         *config.get_cookie_args(),
         "--no-cache-dir",
         "--no-part",
         "--no-mtime",
-        "--sponsorblock-remove", SPONSORBLOCK_CATEGORIES,
+    ]
+
+    if is_youtube_url(video_url):
+        cmd.extend(["--sponsorblock-remove", SPONSORBLOCK_CATEGORIES])
+
+    cmd.extend([
         "--embed-chapters",
         "--embed-metadata",
         "--no-embed-thumbnail",
@@ -40,7 +50,7 @@ def build_video_download_command(
         "--fragment-retries", "10",
         "--file-access-retries", "5",
         "--socket-timeout", "30",
-    ]
+    ])
 
     if resume:
         cmd.append("--continue")
@@ -141,13 +151,16 @@ def build_playlist_download_command(
         output_template = str(playlist_dir / "%(title)s.%(ext)s")
         cmd = [
             "yt-dlp",
-            "-f", f"bestvideo[height<={config.max_resolution}]+bestaudio/best[height<={config.max_resolution}]",
+            "-f", f"bestvideo[height<={config.max_resolution}]+bestaudio/best[height<={config.max_resolution}]/bestvideo+bestaudio/best",
             "--merge-output-format", "mp4",
             *config.get_cookie_args(),
             "--no-cache-dir",
             "--no-part",
             "--no-mtime",
-            "--sponsorblock-remove", SPONSORBLOCK_CATEGORIES,
+        ]
+        if is_youtube_url(playlist_url):
+            cmd.extend(["--sponsorblock-remove", SPONSORBLOCK_CATEGORIES])
+        cmd.extend([
             "--embed-metadata",
             "--embed-chapters",
             "--yes-playlist",
@@ -159,7 +172,7 @@ def build_playlist_download_command(
             "--fragment-retries", "10",
             "--file-access-retries", "5",
             "--socket-timeout", "30",
-        ]
+        ])
 
     if resume:
         cmd.append("--continue")
