@@ -153,6 +153,46 @@ class TestYtdailyCore(unittest.TestCase):
         selected_index = playlist_cmd.index("--playlist-items")
         self.assertEqual(playlist_cmd[selected_index + 1], "1,3")
 
+    def test_multi_platform_command_generation(self):
+        non_yt_urls = [
+            "https://www.tiktok.com/@user/video/1234567890",
+            "https://www.facebook.com/watch/?v=1234567890",
+            "https://www.instagram.com/reel/1234567890",
+            "https://twitter.com/user/status/1234567890",
+            "https://x.com/user/status/1234567890",
+        ]
+        for url in non_yt_urls:
+            cmd = build_video_download_command(
+                self.config,
+                url,
+                self.config.current_video_dir,
+                skip_subs=True,
+                resume=False,
+            )
+            self.assertIn("yt-dlp", cmd)
+            self.assertNotIn("--sponsorblock-remove", cmd)
+            fmt_arg = cmd[cmd.index("-f") + 1]
+            self.assertTrue(fmt_arg.endswith("/bestvideo+bestaudio/best"))
+            self.assertEqual(cmd[-1], url)
+
+    def test_scanner_preserves_multi_platform_video_info(self):
+        scanner = Scanner(self.config, self.state)
+        self.assertFalse(scanner.check_subtitles_available("https://twitter.com/user/status/123"))
+
+        sample_meta = (
+            '{"id": "78910", "title": "Media Post", "uploader": "content_creator", '
+            '"duration": 42, "webpage_url": "https://www.instagram.com/reel/78910/"}'
+        )
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = sample_meta
+            info = scanner.get_video_info("https://www.instagram.com/reel/78910/")
+            self.assertIsNotNone(info)
+            self.assertEqual(info["url"], "https://www.instagram.com/reel/78910/")
+            self.assertEqual(info["id"], "78910")
+            self.assertEqual(info["title"], "Media Post")
+            self.assertEqual(info["uploader"], "content_creator")
+
     def test_playlist_selection_uses_playlist_positions(self):
         videos = [
             {"title": "One", "playlist_index": 1},
