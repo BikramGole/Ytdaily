@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
 from PySide6.QtCore import QSettings, Qt, QThread, Signal
-from PySide6.QtGui import QAction, QIcon
+from PySide6.QtGui import QAction, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -51,6 +51,7 @@ from ytdaily.gui.workers import (
     DownloadWorker,
     PlaylistDownloadWorker,
     PlaylistFetchWorker,
+    VideoPreviewWorker,
 )
 from ytdaily.utils.browser import SUPPORTED_BROWSERS, detect_browser
 from ytdaily.utils.logging import setup_logging
@@ -309,32 +310,72 @@ class SourcesPage(QWidget):
 
 class SingleDownloadPanel(QWidget):
     start_requested = Signal(str, bool)
+    preview_requested = Signal(str)
     cancel_requested = Signal()
 
     def __init__(self) -> None:
         super().__init__()
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(16)
+        layout.setSpacing(14)
 
         form_box = QGroupBox("Download a video or audio track")
         form = QFormLayout(form_box)
         self.url = QLineEdit()
-        self.url.setPlaceholderText("Paste a video URL (YouTube, TikTok, Twitter/X, Instagram, Facebook, etc.)")
+        self.url.setPlaceholderText("Paste a media URL (YouTube, TikTok, Twitter/X, Instagram, Facebook, etc.)")
+        self.url.returnPressed.connect(self._preview)
         self.kind = QComboBox()
         self.kind.addItems(["Video (MP4)", "Audio (MP3, 320 kbps)"])
         self.start = button("Start download", self._start)
         self.start.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.preview_button = button("Preview", self._preview, "secondary")
+        self.preview_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.cancel = button("Cancel", self.cancel_requested.emit, "danger")
         self.cancel.setEnabled(False)
         actions = QHBoxLayout()
         actions.addWidget(self.start)
+        actions.addWidget(self.preview_button)
         actions.addWidget(self.cancel)
         actions.addStretch()
         form.addRow("URL", self.url)
         form.addRow("Format", self.kind)
         form.addRow(actions)
         layout.addWidget(form_box)
+
+        # Media preview card
+        self.preview_box = QGroupBox("Media Preview")
+        self.preview_box.setVisible(False)
+        preview_layout = QHBoxLayout(self.preview_box)
+        preview_layout.setContentsMargins(14, 12, 14, 12)
+        preview_layout.setSpacing(16)
+
+        self.thumbnail_label = QLabel()
+        self.thumbnail_label.setFixedSize(200, 112)
+        self.thumbnail_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.thumbnail_label.setStyleSheet("background: rgba(0, 0, 0, 0.25); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);")
+        preview_layout.addWidget(self.thumbnail_label)
+
+        preview_meta = QVBoxLayout()
+        preview_meta.setSpacing(4)
+        self.preview_title = QLabel("Title: —")
+        self.preview_title.setStyleSheet("font-weight: 600; font-size: 14px;")
+        self.preview_title.setWordWrap(True)
+        self.preview_uploader = QLabel("Channel: —")
+        self.preview_uploader.setObjectName("hint")
+        self.preview_duration = QLabel("Duration: —")
+        self.preview_duration.setObjectName("hint")
+        self.preview_url_label = QLabel("")
+        self.preview_url_label.setObjectName("hint")
+        self.preview_url_label.setWordWrap(True)
+
+        preview_meta.addWidget(self.preview_title)
+        preview_meta.addWidget(self.preview_uploader)
+        preview_meta.addWidget(self.preview_duration)
+        preview_meta.addWidget(self.preview_url_label)
+        preview_meta.addStretch()
+        preview_layout.addLayout(preview_meta, stretch=1)
+
+        layout.addWidget(self.preview_box)
 
         self.status = QLabel("Ready.")
         self.status.setObjectName("hint")
@@ -351,6 +392,47 @@ class SingleDownloadPanel(QWidget):
         self.log.setPlaceholderText("Download progress will appear here.")
         layout.addWidget(self.log, stretch=1)
 
+    def _preview(self) -> None:
+        url = self.url.text().strip()
+        if not url:
+            alert(self, QMessageBox.Icon.Warning, "URL required", "Paste a video URL first.")
+            return
+        self.preview_button.setEnabled(False)
+        self.status.setText("Fetching media preview…")
+        self.preview_requested.emit(url)
+
+    def display_preview(self, data: dict) -> None:
+        self.preview_button.setEnabled(True)
+        self.preview_box.setVisible(True)
+        title = data.get("title", "Unknown title")
+        uploader = data.get("uploader", "Unknown")
+        duration = data.get("duration", "Unknown")
+        if isinstance(duration, (int, float)):
+            from ytdaily.utils.cache import format_duration
+            duration = format_duration(int(duration))
+        url_text = data.get("url") or self.url.text().strip()
+
+        self.preview_title.setText(title)
+        self.preview_uploader.setText(f"👤 {uploader}")
+        self.preview_duration.setText(f"⏱️ Duration: {duration}")
+        self.preview_url_label.setText(f"🔗 {url_text}")
+
+        thumb_bytes = data.get("thumbnail_bytes")
+        if thumb_bytes:
+            pixmap = QPixmap()
+            if pixmap.loadFromData(thumb_bytes):
+                self.thumbnail_label.setPixmap(
+                    pixmap.scaled(
+                        self.thumbnail_label.size(),
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
+                )
+            else:
+                self.thumbnail_label.setText("No Preview")
+        else:
+            self.thumbnail_label.setText("No Preview")
+
     def _start(self) -> None:
         url = self.url.text().strip()
         if not url:
@@ -365,7 +447,10 @@ class SingleDownloadPanel(QWidget):
 
     def handle_progress(self, data: dict) -> None:
         event_type = data.get("type", "update")
-        if event_type == "download":
+        if event_type == "preview":
+            self.display_preview(data)
+            return
+        elif event_type == "download":
             percent = float(data.get("percent", 0))
             self.progress.setValue(round(percent))
             self.status.setText(f"Downloading… {percent:.1f}%  ·  {data.get('speed', '')}  ·  ETA {data.get('eta', '')}")
@@ -910,6 +995,7 @@ class MainWindow(QMainWindow):
         self.dashboard.run_requested.connect(self.start_auto_download)
         self.settings.theme_changed.connect(self.apply_theme)
         self.download.single.start_requested.connect(self.start_download)
+        self.download.single.preview_requested.connect(self.start_preview_fetch)
         self.download.single.cancel_requested.connect(self.cancel_single_download)
         self.download.playlist.fetch_requested.connect(self.start_playlist_fetch)
         self.download.playlist.download_requested.connect(self.start_playlist_download)
@@ -987,6 +1073,20 @@ class MainWindow(QMainWindow):
         self.refresh_all()
         if self.tray is not None:
             self.tray.showMessage("Ytdaily", message)
+
+    def start_preview_fetch(self, url: str) -> None:
+        if self._job_running("preview"):
+            return
+        worker = VideoPreviewWorker(self.scanner, url)
+        worker.fetched.connect(self.download.single.display_preview)
+        if not self._start_job("preview", worker, self._preview_finished):
+            self.download.single.preview_button.setEnabled(True)
+            self.download.single.status.setText("A preview job is already running.")
+
+    def _preview_finished(self, success: bool, message: str) -> None:
+        self.download.single.preview_button.setEnabled(True)
+        self.download.single.status.setText(message)
+        self.statusBar().showMessage(message, 5000)
 
     def start_auto_download(self) -> None:
         if self._job_running("auto"):
