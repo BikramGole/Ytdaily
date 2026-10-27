@@ -129,3 +129,34 @@ class TestDesktopGui(unittest.TestCase):
             for h in logging.getLogger("ytdaily").handlers[:]:
                 h.close()
                 logging.getLogger("ytdaily").removeHandler(h)
+
+    def test_single_download_preview_display(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config = Config(
+                base_video_dir=root / "Videos",
+                base_audio_dir=root / "Music",
+                base_playlist_dir=root / "Playlists",
+                base_podcast_dir=root / "Podcasts",
+                log_dir=root / "state",
+            )
+            window = MainWindow(config)
+            panel = window.download.single
+            self.assertTrue(panel.preview_box.isHidden())
+
+            panel.display_preview({
+                "title": "Sample Clip",
+                "uploader": "Test Channel",
+                "duration": 120,
+                "url": "https://example.com/video",
+            })
+            self.assertFalse(panel.preview_box.isHidden())
+            self.assertEqual(panel.preview_title.text(), "Sample Clip")
+            self.assertIn("Test Channel", panel.preview_uploader.text())
+
+            if window.tray is not None:
+                window.tray.hide()
+            for h in logging.getLogger("ytdaily").handlers[:]:
+                h.close()
+                logging.getLogger("ytdaily").removeHandler(h)
+        window.deleteLater()
