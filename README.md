@@ -1,81 +1,135 @@
-# 📺 Ytdaily
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![Platform: Windows%20%7C%20Linux%20%7C%20macOS-blue.svg)](https://www.python.org/)
+<div align="center">
 
-**Ytdaily** is a high-performance, interactive media automation engine designed for creators and enthusiasts. It transforms your local machine into a smart media server that monitors feeds and downloads content across YouTube, TikTok, Facebook, Instagram, Twitter/X, and all major video platforms in crystal-clear quality while applying professional-grade filtering and optimization.
+  <img src="assets/icons/hicolor/scalable/apps/ytdaily.svg" alt="Ytdaily Logo" width="130" height="130" />
+
+  # 📺 Ytdaily
+
+  **The Universal Media Automation & Multi-Platform Feed Downloader**
+
+  *Transform your machine into a smart, silent personal media hub with zero duplicate downloads.*
+
+  [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+  [![Python 3.9+](https://img.shields.io/badge/Python-3.9+-3776AB.svg?style=flat-square&logo=python&logoColor=white)](https://www.python.org/downloads/)
+  [![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows%20%7C%20macOS-informational?style=flat-square)](https://www.python.org/)
+  [![UI: PySide6 & Rich](https://img.shields.io/badge/UI-PySide6%20%2B%20Rich-41CD52.svg?style=flat-square&logo=qt&logoColor=white)](https://pyside.org)
+  [![Engine: yt-dlp](https://img.shields.io/badge/Engine-yt--dlp-red.svg?style=flat-square)](https://github.com/yt-dlp/yt-dlp)
+
+  <p align="center">
+    <a href="#-key-features">Features</a> •
+    <a href="#-supported-platforms">Supported Platforms</a> •
+    <a href="#-visual-tour">Visual Tour</a> •
+    <a href="#-how-it-works-architecture">Architecture</a> •
+    <a href="#-get-started">Installation</a> •
+    <a href="#-desktop-gui--windows">Desktop GUI</a> •
+    <a href="#-automation-engine-systemd">Automation</a>
+  </p>
+
+</div>
+
+---
+
+## 🌟 Overview
+
+**Ytdaily** is a high-performance, interactive media automation engine and downloader built for creators, archivists, and enthusiasts. It quietly monitors your favorite content feeds, channels, and playlists, automatically synchronizing newly published media in crystal-clear quality up to 4K, scrubbing sponsors, extracting high-fidelity audio (320kbps MP3), and maintaining a state-based database so you never download duplicates.
+
+Whether you prefer a gorgeous **PySide6 desktop GUI** (themed with Catppuccin Mocha) or a lightning-fast **Rich Terminal UI (TUI)**, Ytdaily gives you seamless control over single downloads, batch collections, and continuous 24/7 background automation.
+
+---
+
+## 🌐 Supported Platforms
+
+Ytdaily features universal video and audio extraction powered by `yt-dlp`:
+
+| Platform | Streams & Feeds | Video Formats | Audio Only | SponsorBlock |
+| :--- | :---: | :---: | :---: | :---: |
+| **YouTube** | Channels, Playlists, Shorts, URLs | Up to 4K (2160p) | 320 kbps MP3 | ✅ Built-in |
+| **TikTok** | User Profiles, Video Links | Best progressive MP4 | 320 kbps MP3 | N/A |
+| **Instagram** | Reels, Stories, Video Posts | Best progressive MP4 | 320 kbps MP3 | N/A |
+| **Twitter / X** | Status Clips, Media Tweets | Best progressive MP4 | 320 kbps MP3 | N/A |
+| **Facebook** | Watch, Reels, Page Videos | High Definition MP4 | 320 kbps MP3 | N/A |
+| **Web Video** | Direct URLs & 1,000+ Providers | Adaptive Streams & MP4 | 320 kbps MP3 | N/A |
+
+---
+
+## ✨ Key Features
+
+- ⚡ **Multi-Threaded Parallel Downloads**: Download multiple streams simultaneously with intelligent bandwidth distribution.
+- 🎯 **Configurable Quality**: Select resolutions from 360p to 4K (2160p) with automatic format fallbacks.
+- 🛡️ **SponsorBlock Scrubbing**: Automatically cuts sponsors, intro cards, interaction reminders, and filler segments from supported video feeds.
+- 🍪 **Seamless Browser Authentication**: Auto-detects session cookies from Brave, Chrome, Chromium, Firefox, Edge, Opera, or Vivaldi.
+- 📻 **Podcast Automation**: Automatically converts monitored audio feeds into pristine 320kbps MP3s with embedded album art.
+- 🧠 **Smart Gap Detection**: JSON-backed state tracking keeps an exact history of every video encountered to ensure zero duplicate downloads.
+- 🧹 **Self-Cleaning Retention**: Configurable auto-cleanup automatically purges files older than your retention policy (default: 60 days).
+- 🎨 **Dual Interface**: Switch effortlessly between the Catppuccin Mocha PySide6 desktop application and the rich command-line TUI.
 
 ---
 
 ## 🖼️ Visual Tour
 
-### 🖥️ Core Interface
-| Main Menu | Statistics Dashboard |
-| :---: | :---: |
-| ![Main Menu](screenshots/main_menu.svg) | ![Statistics](screenshots/statistics.svg) |
-
-### 🚀 Smart Tracking & Downloads
-| Configuration Scan | Scan Results |
-| :---: | :---: |
-| ![Config Scan](screenshots/config_scan.png) | ![Scan Results](screenshots/scan_results.png) |
-
-### ⚡ Advanced Features
-| Parallel Download Progress | Detailed Download Info |
-| :---: | :---: |
-| ![Parallel Progress](screenshots/parallel_download.png) | ![Download Info](screenshots/download_info.png) |
-
-| Customizable Settings | Playlist Management |
-| :---: | :---: |
-| ![Settings](screenshots/settings.png) | ![Playlist Management](screenshots/playlist_mgmt.png) |
-
 ### 🖥️ Desktop GUI (PySide6)
 
-The redesigned desktop app ships with a Catppuccin Mocha default theme — switchable from five themes in Settings.
+The desktop app comes loaded with a Catppuccin Mocha dark theme (switchable from five built-in palettes in Settings), complete with searchable history, playlist entry selectors, and background workers.
 
-| Dashboard | Sources |
+| Dashboard | Source Tracking |
 | :---: | :---: |
 | ![Dashboard](screenshots/gui-dashboard.png) | ![Channels](screenshots/gui-channels.png) |
 
-| Downloads (single & playlist) | Searchable history |
+| One-Off Downloads (MP4 / MP3) | Searchable History |
 | :---: | :---: |
 | ![Download](screenshots/gui-download.png) | ![History](screenshots/gui-history.png) |
 
-| Playlist picker with selective download | Themes & settings |
+| Playlist Selective Picker | Themes & Preferences |
 | :---: | :---: |
 | ![Playlist picker](screenshots/gui-playlist.png) | ![Settings](screenshots/gui-settings.png) |
 
 ---
 
-## 🛠️ How it Works: The Architecture
+### 💻 Terminal UI (Rich TUI)
 
-![Workflow Architecture](screenshots/workflow_architecture.png)
+| Main Menu | Statistics Dashboard |
+| :---: | :---: |
+| ![Main Menu](screenshots/main_menu.svg) | ![Statistics](screenshots/statistics.svg) |
 
-`Ytdaily` is built on a "Silent Automation" philosophy. It uses a **State-Based Tracking System** to ensure you never miss a video and never download a duplicate.
+| Automated Configuration Scan | Live Gap Detection |
+| :---: | :---: |
+| ![Config Scan](screenshots/config_scan.png) | ![Scan Results](screenshots/scan_results.png) |
 
-### 1. The Intelligent Monitor
-The engine maintains a local JSON database of every video it has ever encountered. When a scan starts, it fetches the latest activity from your monitored channels and compares signatures to identify "Gaps" in your collection.
-
-### 2. Parallel Processing Engine
-![Parallel Processing Engine](screenshots/parallel_processing_engine.png)
-
-Unlike traditional downloaders that process one file at a time, `Ytdaily` utilizes a multi-threaded parallel downloader. It intelligently distributes your bandwidth across multiple streams to finish your daily queue in minutes rather than hours.
-
-### 3. The SponsorBlock Integration
-Every download is automatically scrubbed of non-content segments (Sponsors, Intros, Outros, Interaction Reminders) using the SponsorBlock API, saving you hours of watch time.
+| Parallel Download Progress | Detailed Media Info |
+| :---: | :---: |
+| ![Parallel Progress](screenshots/parallel_download.png) | ![Download Info](screenshots/download_info.png) |
 
 ---
 
-## ⚡ Get Started
+## 🛠️ How it Works: Architecture
 
-### Arch Linux (AUR)
-> **TODO:** AUR account creation is suspended, so `ytdaily-git` is not published yet. Once registrations resume, the package will go live and this will work:
-```bash
-yay -S ytdaily-git
+<p align="center">
+  <img src="screenshots/workflow_architecture.png" alt="Workflow Architecture" width="850" />
+</p>
+
+Ytdaily operates on a **Silent Automation** philosophy:
+
 ```
-Installs `ytdaily` (TUI) and `ytdaily-gui` desktop app system-wide, with updates handled by your AUR helper.
+[ Scheduled Trigger / GUI ] ───► [ Intelligent Scanner ] ───► [ Gap Signature Match ]
+                                                                       │
+[ Download Complete ] ◄─── [ SponsorBlock / Subtitles ] ◄─── [ Multi-Threaded Engine ]
+```
 
-### Other distributions
-Designed to work across **Debian, Ubuntu, and Fedora** based distributions. The installer handles system dependencies, Python environment isolation (PEP 668), and shell integration.
+1. **Intelligent Monitor**: Scans your configured creators, channels, and playlists, querying metadata using lightweight flat-playlist requests.
+2. **Signature Comparison**: Checks video IDs against your local state database (`~/.local/share/Ytdaily/channel_history.json`) to isolate new uploads.
+3. **Parallel Processing**: Dispatches download tasks through a managed `ThreadPoolExecutor` with real-time speed, progress, and ETA reporting.
+4. **Post-Processing & Scrubbing**: Automatically embeds chapters and subtitles, removes sponsor segments, and standardizes container formats.
+
+<p align="center">
+  <img src="screenshots/parallel_processing_engine.png" alt="Parallel Processing Engine" width="750" />
+</p>
+
+---
+
+## 🚀 Get Started
+
+### Linux (Debian, Ubuntu, Fedora, Arch)
+
+The automated installer checks dependencies, isolates Python environments (PEP 668 compliant), sets up directories, injects shell aliases, and registers the systemd service.
 
 ```bash
 git clone https://github.com/BikramGole/Ytdaily.git
@@ -84,71 +138,84 @@ chmod +x install.sh
 ./install.sh
 ```
 
-### What the installer does:
-- Checks for and installs `yt-dlp`, `ffmpeg`, and `python-rich` using your native package manager.
-- Sets up a robust directory structure in `~/.local/share/Ytdaily/`.
-- Injects `Ytdaily` aliases into your shell (`bash`, `zsh`, or `fish`).
-- **Initializes the Automation Engine (Systemd).**
+#### What the installer configures:
+- Installs `yt-dlp`, `ffmpeg`, and `python-rich` using your distribution's native package manager.
+- Initializes workspace directories in `~/.local/share/Ytdaily/`.
+- Injects `ytdaily` and `ytdaily-gui` aliases into `bash`, `zsh`, or `fish`.
+- Installs desktop menu entries and scalable application icons.
+- Enables the optional daily **Systemd Background Service**.
 
 ---
 
-## ⏰ The Automation Engine (Systemd)
+### ⏰ The Automation Engine (Systemd)
 
-After installation, `Ytdaily` operates as a silent background service. 
+After installation on Linux, Ytdaily can run as a silent background service:
 
-- **Trigger**: The service runs once every 24 hours.
-- **Boot Safety**: It includes a **5-minute delay** after your system boots to ensure network stability before starting the scan.
-- **Resource Management**: Uses `Nice=19` and `IOSchedulingClass=idle` to ensure it never slows down your PC while you are working.
+- **Schedule**: Executes once every 24 hours.
+- **Boot Safety**: Automatically waits 5 minutes after system startup for stable network connectivity.
+- **Resource Priority**: Operates with `Nice=19` and `IOSchedulingClass=idle` to ensure your system never stutters during work or gaming.
 
-You can check the status of your automated downloader at any time:
+Manage the automation service at any time:
 ```bash
+# Check status
 systemctl --user status Ytdaily.service
+
+# View live service logs
+journalctl --user -u Ytdaily.service -f
 ```
 
 ---
 
-## 🖥️ Desktop GUI and Windows
+### 🪟 Windows Setup
 
-The new PySide6 desktop application works on Windows, Linux, and macOS. It provides a dashboard, channel and playlist management, one-off MP4/MP3 downloads with live progress and cancellation, history search, configurable folders, and a system-tray menu.
+1. Install [Python 3.9+](https://www.python.org/downloads/) (check **"Add Python to PATH"**).
+2. Install [FFmpeg](https://ffmpeg.org/download.html) and ensure `ffmpeg.exe` is in your system `PATH`.
+3. Clone this repository and run the setup script:
+   ```cmd
+   git clone https://github.com/BikramGole/Ytdaily.git
+   cd Ytdaily
+   install_windows.bat
+   ```
+4. Launch the desktop GUI:
+   ```cmd
+   py -m ytdaily.main --gui
+   ```
 
-### Windows quick start
-
-1. Install Python 3.9+ and select **Add Python to PATH** during installation.
-2. Clone this repository, then run `install_windows.bat`.
-3. Install [FFmpeg](https://ffmpeg.org/download.html) and ensure `ffmpeg` and `ffprobe` are on `PATH`.
-4. Run `py -m ytdaily.main --gui`.
-
-Windows state and logs are kept in `%LOCALAPPDATA%\Ytdaily`; download folders are configurable in the GUI. To make a portable `.exe` from Windows, run `powershell -ExecutionPolicy Bypass -File scripts\build_windows.ps1`. Every push to `main` also creates a Windows build artifact through GitHub Actions.
-
-On Linux or macOS, after installing the Python requirements, use `python -m ytdaily.main --gui` (or the installed `ytdaily-gui` command).
-
----
-
-## ✨ Key Features
-
-- 🎯 **Multi-Quality Support**: Target any resolution from 360p to 4K (2160p).
-- 📻 **Podcast Automation**: Automatically converts specific sources to high-fidelity 320kbps MP3s.
-- 🍪 **Smart Cookie Auth**: Auto-detects your browser (Brave, Chrome, Chromium, Firefox, Edge, Opera, Vivaldi) and uses its cookies to bypass YouTube's bot detection. Fully configurable — set a specific browser or disable via `none`.
-- 🧹 **Dynamic Cleanup**: Set a retention policy (e.g., 60 days) to keep your storage lean.
-- 🌍 **Subtitles & Metadata**: Embeds official and auto-generated subtitles, thumbnails, and metadata into the MP4 container.
+> [!TIP]
+> To compile a standalone, single-file Windows executable, execute:
+> ```powershell
+> powershell -ExecutionPolicy Bypass -File scripts\build_windows.ps1
+> ```
 
 ---
 
-## 📜 Technical Stack
+## ⚙️ Configuration & Customization
 
-- **Logic**: Python 3
-- **UI**: Rich terminal UI and PySide6 desktop GUI
-- **Engine**: yt-dlp & FFmpeg
-- **Scheduling**: Systemd User Timers
-- **Package Management**: Native Linux Bridge (Pacman/Apt/Dnf)
+Ytdaily stores its configuration in `config.json` inside your application directory. You can edit settings directly in the TUI or GUI Settings panel:
+
+| Setting | Default | Description |
+| :--- | :---: | :--- |
+| `max_resolution` | `720` | Target maximum video resolution (`360`, `480`, `720`, `1080`, `1440`, `2160`) |
+| `max_parallel_downloads` | `3` | Number of simultaneous concurrent download streams |
+| `cleanup_days` | `60` | Days to keep videos before automatic cleanup |
+| `filter_shorts` | `true` | Skip vertical shorts (< 60 seconds) during automatic feed scans |
+| `browser` | `auto` | Browser to extract authentication cookies from (`chrome`, `firefox`, `brave`, `edge`, etc.) |
 
 ---
 
-## ⚖️ License
+## 🧰 Tech Stack
 
-[MIT](LICENSE) - Free to use, modify, and distribute under the terms of the MIT license.
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
+  <img src="https://img.shields.io/badge/Qt_PySide6-41CD52?style=for-the-badge&logo=qt&logoColor=white" alt="Qt PySide6" />
+  <img src="https://img.shields.io/badge/FFmpeg-007808?style=for-the-badge&logo=ffmpeg&logoColor=white" alt="FFmpeg" />
+  <img src="https://img.shields.io/badge/yt--dlp-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="yt-dlp" />
+  <img src="https://img.shields.io/badge/Systemd-CC2200?style=for-the-badge&logo=linux&logoColor=white" alt="Systemd" />
+</p>
 
-## Star History
+---
+
+## 📈 Star History
 
 <a href="https://star-history.com/#BikramGole/Ytdaily&Date">
  <picture>
@@ -159,3 +226,7 @@ On Linux or macOS, after installing the Python requirements, use `python -m ytda
 </a>
 
 ---
+
+## ⚖️ License
+
+Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for more information.
