@@ -206,7 +206,7 @@ class SourcesPage(QWidget):
         self.state, self.kind = state, kind
         self.items: Dict[str, str] = state.channels if kind == "channel" else state.playlists
         self.name = "Channels" if kind == "channel" else "Playlists"
-        self._columns = page_header(self, self.name, f"Manage the YouTube {kind}s automatic downloads watch.")
+        self._columns = page_header(self, self.name, f"Manage the {kind}s automatic downloads watch.")
         self.count_label = QLabel()
         self.count_label.setObjectName("hint")
         self._columns.addWidget(self.count_label)
@@ -217,7 +217,7 @@ class SourcesPage(QWidget):
         add_box = QGroupBox(f"Add {kind}")
         self.identifier = QLineEdit()
         self.identifier.setPlaceholderText(
-            "@channel-handle or channel URL" if kind == "channel" else "https://www.youtube.com/playlist?list=…"
+            "@handle or creator URL" if kind == "channel" else "https://... playlist or collection URL"
         )
         self.display_name = QLineEdit()
         self.display_name.setPlaceholderText("Display name")
@@ -263,7 +263,8 @@ class SourcesPage(QWidget):
         source_id = self.identifier.text().strip()
         label = self.display_name.text().strip()
         if self.kind == "channel":
-            source_id = source_id.lstrip("@")
+            if not source_id.startswith("http"):
+                source_id = source_id.lstrip("@")
         if not source_id:
             alert(self, QMessageBox.Icon.Warning, f"Add {self.kind}", "Enter the playlist URL." if self.kind == "playlist" else "Enter the channel handle or URL.")
             return
@@ -319,7 +320,7 @@ class SingleDownloadPanel(QWidget):
         form_box = QGroupBox("Download a video or audio track")
         form = QFormLayout(form_box)
         self.url = QLineEdit()
-        self.url.setPlaceholderText("Paste a YouTube video URL")
+        self.url.setPlaceholderText("Paste a video URL (YouTube, TikTok, Twitter/X, Instagram, Facebook, etc.)")
         self.kind = QComboBox()
         self.kind.addItems(["Video (MP4)", "Audio (MP3, 320 kbps)"])
         self.start = button("Start download", self._start)
@@ -353,7 +354,7 @@ class SingleDownloadPanel(QWidget):
     def _start(self) -> None:
         url = self.url.text().strip()
         if not url:
-            alert(self, QMessageBox.Icon.Warning, "URL required", "Paste a YouTube video URL first.")
+            alert(self, QMessageBox.Icon.Warning, "URL required", "Paste a video URL first.")
             return
         self.log.clear()
         self.progress.setValue(0)
@@ -407,7 +408,7 @@ class PlaylistPanel(QWidget):
         form_layout.setSpacing(10)
         url_row = QHBoxLayout()
         self.url = QLineEdit()
-        self.url.setPlaceholderText("https://www.youtube.com/playlist?list=…")
+        self.url.setPlaceholderText("https://... playlist or collection URL")
         self.fetch_button = button("Fetch videos", self._fetch)
         self.fetch_button.setEnabled(True)
         url_row.addWidget(self.url, stretch=1)
@@ -461,7 +462,7 @@ class PlaylistPanel(QWidget):
         current_label.setObjectName("hint")
         current_row.addWidget(current_label)
         current_row.addWidget(self.current, stretch=1)
-        self.status = QLabel("Paste a playlist URL and fetch its videos to pick what to download.")
+        self.status = QLabel("Paste a playlist or collection URL and fetch its videos to pick what to download.")
         self.status.setObjectName("hint")
         layout.addLayout(overall_row)
         layout.addLayout(current_row)
@@ -471,7 +472,7 @@ class PlaylistPanel(QWidget):
     def _fetch(self) -> None:
         url = self.url.text().strip()
         if not url:
-            alert(self, QMessageBox.Icon.Warning, "URL required", "Paste a YouTube playlist URL first.")
+            alert(self, QMessageBox.Icon.Warning, "URL required", "Paste a playlist or collection URL first.")
             return
         self.fetch_requested.emit(url)
 
