@@ -202,7 +202,7 @@ class Scanner:
                     "uploader": uploader,
                     "duration": duration,
                     "duration_formatted": format_duration(duration),
-                    "thumbnail": data.get("thumbnail", ""),
+                    "thumbnail": data.get("thumbnail") or (data.get("thumbnails")[-1].get("url") if data.get("thumbnails") else ""),
                     "view_count": data.get("view_count", 0),
                     "upload_date": data.get("upload_date", ""),
                     "url": resolved_url,
