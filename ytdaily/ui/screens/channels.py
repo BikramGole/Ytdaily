@@ -58,7 +58,10 @@ def manage_items(
         elif choice == "3":
             raw_id = ask_string(f"Enter {id_label} ({id_example}):")
             if item_type.lower() == "channel":
-                raw_id = raw_id.lstrip("@").strip()
+                if not raw_id.startswith("http"):
+                    raw_id = raw_id.lstrip("@").strip()
+                else:
+                    raw_id = raw_id.strip()
             name = ask_string(f"Enter {item_type.lower()} display name:")
 
             if raw_id in items_dict:
@@ -95,6 +98,6 @@ def manage_channels(state: StateManager) -> None:
         state=state,
         item_type="Channel",
         items_dict=state.channels,
-        id_label="channel handle without @",
-        id_example="e.g. mreflow or mkbhd",
+        id_label="channel handle or creator profile URL",
+        id_example="e.g. mreflow or profile URL",
     )
