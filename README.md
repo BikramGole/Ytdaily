@@ -3,7 +3,7 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![Platform: Windows%20%7C%20Linux%20%7C%20macOS-blue.svg)](https://www.python.org/)
 
-**Ytdaily** is a high-performance, interactive YouTube automation engine designed for creators and enthusiasts. It transforms your local machine into a smart media server that monitors your favorite channels and playlists, downloading content in crystal-clear quality while applying professional-grade filtering and optimization.
+**Ytdaily** is a high-performance, interactive media automation engine designed for creators and enthusiasts. It transforms your local machine into a smart media server that monitors feeds and downloads content across YouTube, TikTok, Facebook, Instagram, Twitter/X, and all major video platforms in crystal-clear quality while applying professional-grade filtering and optimization.
 
 ---
 
