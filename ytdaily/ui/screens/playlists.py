@@ -12,6 +12,6 @@ def manage_playlists(state: StateManager) -> None:
         state=state,
         item_type="Playlist",
         items_dict=state.playlists,
-        id_label="YouTube playlist URL",
-        id_example="e.g. https://www.youtube.com/playlist?list=PL...",
+        id_label="playlist or collection URL",
+        id_example="e.g. YouTube, TikTok, or other media playlist URL",
     )
