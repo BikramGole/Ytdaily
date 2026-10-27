@@ -12,6 +12,7 @@ from ytdaily.core.scanner import Scanner
 from ytdaily.theme import console
 from ytdaily.ui.widgets.prompts import ask_string, ask_choice, ask_confirm
 from ytdaily.ui.widgets.playlist_selector import select_playlist_videos
+from ytdaily.utils.thumbnail import display_terminal_thumbnail
 
 
 def download_single_video_interactive(downloader: Downloader, scanner: Scanner) -> None:
@@ -44,6 +45,9 @@ def download_single_video_interactive(downloader: Downloader, scanner: Scanner) 
         preview_table.add_row("📅 Uploaded:", video_info.get("upload_date"))
     if video_info.get("thumbnail"):
         preview_table.add_row("🖼️ Thumbnail:", f"[link={video_info['thumbnail']}]{video_info['thumbnail']}[/link]")
+
+    if video_info.get("thumbnail"):
+        display_terminal_thumbnail(video_info["thumbnail"])
 
     console.print(
         Panel(
@@ -96,6 +100,9 @@ def download_single_audio_interactive(downloader: Downloader, scanner: Scanner) 
     preview_table.add_row("⏱️ Duration:", video_info.get("duration_formatted", "Unknown"))
     if video_info.get("thumbnail"):
         preview_table.add_row("🖼️ Cover Art:", f"[link={video_info['thumbnail']}]{video_info['thumbnail']}[/link]")
+
+    if video_info.get("thumbnail"):
+        display_terminal_thumbnail(video_info["thumbnail"])
 
     console.print(
         Panel(
