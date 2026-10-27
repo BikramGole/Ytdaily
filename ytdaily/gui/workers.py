@@ -39,6 +39,22 @@ class DownloadWorker(QObject):
         if not info:
             self.finished.emit(False, "Could not read video details. Check the URL and connection.")
             return
+        thumb_bytes = None
+        if info.get("thumbnail"):
+            try:
+                from ytdaily.utils.thumbnail import download_thumbnail_bytes
+                thumb_bytes = download_thumbnail_bytes(info["thumbnail"], timeout=4.0)
+            except Exception:
+                pass
+        self.progress.emit({
+            "type": "preview",
+            "title": info.get("title", "Unknown"),
+            "thumbnail": info.get("thumbnail", ""),
+            "thumbnail_bytes": thumb_bytes,
+            "uploader": info.get("uploader", "Unknown"),
+            "duration": info.get("duration_formatted", "Unknown"),
+            "url": info.get("url", self.url),
+        })
         self.progress.emit({"type": "starting", "title": info["title"]})
         success, _ = self.downloader.download_video(
             info,
@@ -54,6 +70,35 @@ class DownloadWorker(QObject):
     @Slot()
     def cancel(self) -> None:
         self.cancel_event.set()
+
+
+class VideoPreviewWorker(QObject):
+    """Fetch video metadata and thumbnail without starting a download."""
+
+    fetched = Signal(dict)
+    finished = Signal(bool, str)
+
+    def __init__(self, scanner: Scanner, url: str) -> None:
+        super().__init__()
+        self.scanner = scanner
+        self.url = url
+
+    @Slot()
+    def run(self) -> None:
+        info = self.scanner.get_video_info(self.url)
+        if not info:
+            self.finished.emit(False, "Could not read media details. Check the URL and connection.")
+            return
+        thumb_bytes = None
+        if info.get("thumbnail"):
+            try:
+                from ytdaily.utils.thumbnail import download_thumbnail_bytes
+                thumb_bytes = download_thumbnail_bytes(info["thumbnail"], timeout=4.0)
+            except Exception:
+                pass
+        info["thumbnail_bytes"] = thumb_bytes
+        self.fetched.emit(info)
+        self.finished.emit(True, "Loaded preview.")
 
 
 class PlaylistFetchWorker(QObject):
