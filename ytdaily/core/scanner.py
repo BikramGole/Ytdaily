@@ -24,6 +24,34 @@ class Scanner:
         self.logger = logger or logging.getLogger("ytdaily")
         self.last_query_error: str = ""
 
+    def _run_yt_dlp(
+        self,
+        cmd: List[str],
+        timeout: int,
+        check: bool = False,
+    ) -> subprocess.CompletedProcess:
+        """Run a yt-dlp command, auto-retrying once with --force-ipv4 on IPv6 timeout."""
+        attempts = [
+            list(cmd),
+            list(cmd[:1]) + ["--force-ipv4"] + list(cmd[1:]),
+        ]
+        last_error: Optional[Exception] = None
+        for attempt_cmd in attempts:
+            try:
+                return subprocess.run(
+                    attempt_cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                    check=check,
+                )
+            except subprocess.TimeoutExpired as exc:
+                last_error = exc
+                self.logger.warning("⚠️ yt-dlp query timed out, retrying with --force-ipv4...")
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("yt-dlp query failed without producing a result")
+
     def get_all_recent_videos(
         self,
         url: str,
@@ -47,10 +75,8 @@ class Scanner:
                 if max_videos is not None:
                     cmd[2:2] = ["--playlist-items", f"1-{max_videos}"]
 
-                result = subprocess.run(
+                result = self._run_yt_dlp(
                     cmd,
-                    capture_output=True,
-                    text=True,
                     timeout=self.config.query_timeout * 2,
                     check=True,
                 )
@@ -142,10 +168,8 @@ class Scanner:
                         *self.config.get_cookie_args(),
                             *self.config.get_network_args(),
                     ]
-                    result = subprocess.run(
+                    result = self._run_yt_dlp(
                         cmd,
-                        capture_output=True,
-                        text=True,
                         timeout=30,
                         check=False,
                     )
@@ -192,7 +216,7 @@ class Scanner:
                 *self.config.get_network_args(),
                 video_url,
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=False)
+            result = self._run_yt_dlp(cmd, timeout=30, check=False)
             if result.returncode == 0 and result.stdout.strip():
                 data = json.loads(result.stdout.strip().split("\n")[0])
                 duration = data.get("duration", 0) or 0
@@ -237,10 +261,8 @@ class Scanner:
                 *self.config.get_network_args(),
                 playlist_url,
             ]
-            result = subprocess.run(
+            result = self._run_yt_dlp(
                 cmd,
-                capture_output=True,
-                text=True,
                 timeout=self.config.query_timeout,
                 check=False,
             )
@@ -265,7 +287,11 @@ class Scanner:
                     *self.config.get_network_args(),
                     playlist_url,
                 ]
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=self.config.query_timeout, check=False)
+                result = self._run_yt_dlp(
+                    cmd,
+                    timeout=self.config.query_timeout,
+                    check=False,
+                )
                 if result.returncode == 0 and result.stdout.strip():
                     return {
                         "title": result.stdout.strip(),
@@ -308,7 +334,7 @@ class Scanner:
                 *self.config.get_network_args(),
                 video_url,
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=False)
+            result = self._run_yt_dlp(cmd, timeout=30, check=False)
             if result.returncode == 0:
                 lines = result.stdout.strip().split("\n")
                 for line in lines:
