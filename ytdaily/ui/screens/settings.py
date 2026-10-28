@@ -47,13 +47,14 @@ def manage_settings(config: Config, state: StateManager) -> None:
         table.add_row("9", "🎧 Audio Directory", str(config.base_audio_dir), "Valid directory path")
         table.add_row("10", "🧹 Video Retention Days", f"{config.cleanup_days} days", "1 - 3650")
         table.add_row("11", "⏱️ Filter Shorts (<60s)", "ENABLED" if config.filter_shorts else "DISABLED", "Toggle")
+        table.add_row("12", "🌐 Force IPv4 (fix IPv6 timeouts)", "ENABLED" if config.force_ipv4 else "DISABLED", "Toggle")
 
         console.print(table)
         console.print("")
 
         choice = ask_choice(
-            "Select setting to modify (1-11, 0 to back)",
-            choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "0", "q", "b"],
+            "Select setting to modify (1-12, 0 to back)",
+            choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "0", "q", "b"],
             show_choices=False,
         )
 
@@ -166,3 +167,9 @@ def manage_settings(config: Config, state: StateManager) -> None:
             status = "ENABLED" if config.filter_shorts else "DISABLED"
             state.save_config()
             console.print(f"[bold green]✅ Shorts filter: {status}[/bold green]")
+
+        elif choice == "12":
+            config.force_ipv4 = not config.force_ipv4
+            status = "ENABLED" if config.force_ipv4 else "DISABLED"
+            state.save_config()
+            console.print(f"[bold green]✅ Force IPv4: {status}[/bold green]")
