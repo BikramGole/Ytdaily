@@ -50,6 +50,7 @@ class Config:
     ask_video_limit_per_channel: bool = False
     gap_check_limit: int = 10
     browser: str = "auto"
+    force_ipv4: bool = False
 
     def __post_init__(self):
         """Create base directories and initialize derived paths (defined once)."""
@@ -98,6 +99,12 @@ class Config:
             browser = detect_browser()
         if browser and browser != "none":
             return ["--cookies-from-browser", browser]
+        return []
+
+    def get_network_args(self) -> List[str]:
+        """Return yt-dlp network arguments (e.g. force IPv4 when the IPv6 path is broken)."""
+        if self.force_ipv4:
+            return ["--force-ipv4"]
         return []
 
     def validate(self) -> List[str]:
