@@ -30,6 +30,11 @@ def download_single_video_interactive(downloader: Downloader, scanner: Scanner) 
 
     if not video_info:
         console.print("[bold red]❌ Could not fetch video details. Please check the URL and your connection.[/bold red]")
+        detail = scanner.last_query_error or ""
+        if detail:
+            console.print(f"[dim]Reason: {detail}[/dim]")
+            console.print("[dim]If YouTube reports a login/bot check, switch the cookie browser in Settings, or run the query with a working browser profile.[/dim]")
+            console.print(f"[dim]See {scanner.config.app_log_path} for full details.[/dim]")
         ask_string("Press Enter to return...", allow_empty=True)
         return
 
@@ -147,6 +152,9 @@ def download_playlist_interactive(
 
     if not playlist_info:
         console.print("[bold red]❌ Could not inspect playlist. Please verify the URL.[/bold red]")
+        detail = scanner.last_query_error or ""
+        if detail:
+            console.print(f"[dim]Reason: {detail}[/dim]")
         ask_string("Press Enter to return...", allow_empty=True)
         return
 
