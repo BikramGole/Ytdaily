@@ -56,6 +56,7 @@ class StateManager:
                     self.config.max_videos_per_channel = int(config_data.get("max_videos_per_channel", 100))
                     self.config.max_resolution = str(config_data.get("max_resolution", "720"))
                     self.config.browser = str(config_data.get("browser", "auto"))
+                    self.config.force_ipv4 = bool(config_data.get("force_ipv4", False))
 
                     if "cleanup_days" in config_data:
                         self.config.cleanup_days = int(config_data["cleanup_days"])
@@ -102,6 +103,7 @@ class StateManager:
                 "max_videos_per_channel": self.config.max_videos_per_channel,
                 "max_resolution": self.config.max_resolution,
                 "browser": self.config.browser,
+                "force_ipv4": self.config.force_ipv4,
                 "cleanup_days": self.config.cleanup_days,
                 "filter_shorts": self.config.filter_shorts,
                 "max_parallel_downloads": self.config.max_parallel_downloads,
