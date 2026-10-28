@@ -22,6 +22,7 @@ class Scanner:
         self.config = config
         self.state = state
         self.logger = logger or logging.getLogger("ytdaily")
+        self.last_query_error: str = ""
 
     def get_all_recent_videos(
         self,
@@ -39,8 +40,9 @@ class Scanner:
                     "--flat-playlist",
                     "--dump-json",
                     "--no-warnings",
-                    *self.config.get_cookie_args(),
-                    url,
+                        *self.config.get_cookie_args(),
+                        *self.config.get_network_args(),
+                        url,
                 ]
                 if max_videos is not None:
                     cmd[2:2] = ["--playlist-items", f"1-{max_videos}"]
@@ -138,7 +140,7 @@ class Scanner:
                         "--print", "%(id)s\t%(title)s\t%(uploader)s\t%(duration)s",
                         "--no-warnings",
                         *self.config.get_cookie_args(),
-                        url,
+                            *self.config.get_network_args(),
                     ]
                     result = subprocess.run(
                         cmd,
@@ -187,6 +189,7 @@ class Scanner:
                 "--no-playlist",
                 "--no-warnings",
                 *self.config.get_cookie_args(),
+                *self.config.get_network_args(),
                 video_url,
             ]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=False)
@@ -207,7 +210,15 @@ class Scanner:
                     "upload_date": data.get("upload_date", ""),
                     "url": resolved_url,
                 }
+            else:
+                detail = (result.stderr or result.stdout or "").strip().splitlines()
+                self.last_query_error = detail[-1][:300] if detail else f"yt-dlp exited with code {result.returncode}"
+                self.logger.warning(f"⚠️ Could not fetch video info for {video_url}: {self.last_query_error}")
+        except subprocess.TimeoutExpired:
+            self.last_query_error = "Query timed out after 30 seconds"
+            self.logger.warning(f"⚠️ Could not fetch video info for {video_url}: {self.last_query_error}")
         except Exception as e:
+            self.last_query_error = str(e)[:300]
             self.logger.warning(f"⚠️ Could not fetch video info for {video_url}: {e}")
         return None
 
@@ -223,6 +234,7 @@ class Scanner:
                 "--no-download",
                 "--no-warnings",
                 *self.config.get_cookie_args(),
+                *self.config.get_network_args(),
                 playlist_url,
             ]
             result = subprocess.run(
@@ -250,6 +262,7 @@ class Scanner:
                     "--no-download",
                     "--no-warnings",
                     *self.config.get_cookie_args(),
+                    *self.config.get_network_args(),
                     playlist_url,
                 ]
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=self.config.query_timeout, check=False)
@@ -259,7 +272,12 @@ class Scanner:
                         "uploader": "Unknown",
                         "video_count": 0,
                     }
+                detail = (result.stderr or result.stdout or "").strip().splitlines()
+                self.last_query_error = detail[-1][:300] if detail else f"yt-dlp exited with code {result.returncode}"
+        except subprocess.TimeoutExpired:
+            self.last_query_error = f"Query timed out after {self.config.query_timeout} seconds"
         except Exception as e:
+            self.last_query_error = str(e)[:300]
             self.logger.error(f"❌ Error getting playlist info: {e}")
         return None
 
@@ -287,6 +305,7 @@ class Scanner:
                 "--list-subs",
                 "--no-warnings",
                 *self.config.get_cookie_args(),
+                *self.config.get_network_args(),
                 video_url,
             ]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=False)
