@@ -30,27 +30,67 @@ class Scanner:
         timeout: int,
         check: bool = False,
     ) -> subprocess.CompletedProcess:
-        """Run a yt-dlp command, auto-retrying once with --force-ipv4 on IPv6 timeout."""
+        """Run yt-dlp, retrying transient network errors and falling back to IPv4."""
         attempts = [
             list(cmd),
             list(cmd[:1]) + ["--force-ipv4"] + list(cmd[1:]),
         ]
+        last_result: Optional[subprocess.CompletedProcess] = None
         last_error: Optional[Exception] = None
         for attempt_cmd in attempts:
-            try:
-                return subprocess.run(
-                    attempt_cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=timeout,
-                    check=check,
-                )
-            except subprocess.TimeoutExpired as exc:
-                last_error = exc
-                self.logger.warning("⚠️ yt-dlp query timed out, retrying with --force-ipv4...")
+            if "--socket-timeout" not in attempt_cmd:
+                attempt_cmd = attempt_cmd[:1] + ["--socket-timeout", "15"] + attempt_cmd[1:]
+            for retry in range(2):
+                try:
+                    result = subprocess.run(
+                        attempt_cmd,
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout,
+                        check=check,
+                    )
+                except subprocess.TimeoutExpired as exc:
+                    last_error = exc
+                    self.logger.warning("⚠️ yt-dlp query timed out, retrying with --force-ipv4...")
+                    break
+                except subprocess.CalledProcessError as exc:
+                    last_error = exc
+                    if not self._is_transient_error(f"{exc.stderr or ''}{exc.stdout or ''}"):
+                        raise
+                    self.logger.warning("⚠️ yt-dlp hit a transient network error, retrying...")
+                    time.sleep(1)
+                    continue
+
+                last_result = result
+                if result.returncode == 0:
+                    return result
+                if not self._is_transient_error(f"{result.stderr or ''}{result.stdout or ''}"):
+                    return result
+                last_error = None
+                self.logger.warning("⚠️ yt-dlp hit a transient network error, retrying...")
+                time.sleep(1)
+
+        if last_result is not None and not check:
+            return last_result
         if last_error is not None:
             raise last_error
         raise RuntimeError("yt-dlp query failed without producing a result")
+
+    @staticmethod
+    def _is_transient_error(text: str) -> bool:
+        """Detect retryable DNS/connection failures in yt-dlp output."""
+        lowered = text.lower()
+        markers = (
+            "temporary failure in name resolution",
+            "failed to resolve",
+            "name or service not known",
+            "nodename nor servname",
+            "connection reset",
+            "connection refused",
+            "connection aborted",
+            "timed out",
+        )
+        return any(marker in lowered for marker in markers)
 
     def get_all_recent_videos(
         self,
@@ -68,7 +108,7 @@ class Scanner:
                     "--flat-playlist",
                     "--dump-json",
                     "--no-warnings",
-                        *self.config.get_cookie_args(),
+                        *self.config.get_cookie_args_for_url(url),
                         *self.config.get_network_args(),
                         url,
                 ]
@@ -165,7 +205,7 @@ class Scanner:
                         "--playlist-items", str(i),
                         "--print", "%(id)s\t%(title)s\t%(uploader)s\t%(duration)s",
                         "--no-warnings",
-                        *self.config.get_cookie_args(),
+                        *self.config.get_cookie_args_for_url(url),
                             *self.config.get_network_args(),
                     ]
                     result = self._run_yt_dlp(
@@ -212,7 +252,7 @@ class Scanner:
                 "--dump-json",
                 "--no-playlist",
                 "--no-warnings",
-                *self.config.get_cookie_args(),
+                *self.config.get_cookie_args_for_url(video_url),
                 *self.config.get_network_args(),
                 video_url,
             ]
@@ -257,7 +297,7 @@ class Scanner:
                 "--print", "%(uploader)s",
                 "--no-download",
                 "--no-warnings",
-                *self.config.get_cookie_args(),
+                *self.config.get_cookie_args_for_url(playlist_url),
                 *self.config.get_network_args(),
                 playlist_url,
             ]
@@ -283,7 +323,7 @@ class Scanner:
                     "--print", "%(title)s",
                     "--no-download",
                     "--no-warnings",
-                    *self.config.get_cookie_args(),
+                    *self.config.get_cookie_args_for_url(playlist_url),
                     *self.config.get_network_args(),
                     playlist_url,
                 ]
@@ -330,7 +370,7 @@ class Scanner:
                 "yt-dlp",
                 "--list-subs",
                 "--no-warnings",
-                *self.config.get_cookie_args(),
+                *self.config.get_cookie_args_for_url(video_url),
                 *self.config.get_network_args(),
                 video_url,
             ]
