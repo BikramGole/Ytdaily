@@ -2,6 +2,7 @@
 Configuration dataclass and validation for Ytdaily.
 """
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Tuple, Dict, Any
@@ -100,6 +101,12 @@ class Config:
         if browser and browser != "none":
             return ["--cookies-from-browser", browser]
         return []
+
+    def get_cookie_args_for_url(self, url: str = "") -> List[str]:
+        """Only use browser cookies for YouTube; other platforms download anonymously."""
+        if url and not re.search(r"(?:youtube\.com|youtu\.be|youtube-nocookie\.com)", url, re.IGNORECASE):
+            return []
+        return self.get_cookie_args()
 
     def get_network_args(self) -> List[str]:
         """Return yt-dlp network arguments (e.g. force IPv4 when the IPv6 path is broken)."""
