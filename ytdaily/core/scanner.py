@@ -259,16 +259,33 @@ class Scanner:
             result = self._run_yt_dlp(cmd, timeout=30, check=False)
             if result.returncode == 0 and result.stdout.strip():
                 data = json.loads(result.stdout.strip().split("\n")[0])
-                duration = data.get("duration", 0) or 0
-                title = data.get("title") or data.get("description") or f"Video {data.get('id', '')}"
+                duration = data.get("duration") or data.get("duration_seconds") or 0
+                if not duration:
+                    duration = self._probe_duration(data)
+                description = (data.get("description") or "").strip()
+                title = (data.get("title") or "").strip()
+                generic_title = re.match(
+                    r"^(?:video|reel|post|photo|instagram video|instagram reel)\s+by\s+",
+                    title,
+                    re.IGNORECASE,
+                )
+                if (not title or generic_title) and description:
+                    caption = next((line.strip() for line in description.splitlines() if line.strip()), "")
+                    if caption:
+                        title = caption
+                if not title:
+                    title = f"Video {data.get('id', '')}"
+                if len(title) > 120:
+                    title = title[:117].rstrip() + "…"
                 uploader = data.get("uploader") or data.get("channel") or data.get("creator") or data.get("uploader_id") or "Unknown"
                 resolved_url = data.get("webpage_url") or data.get("url") or video_url
                 return {
                     "id": str(data.get("id", "")),
                     "title": title,
+                    "description": description,
                     "uploader": uploader,
                     "duration": duration,
-                    "duration_formatted": format_duration(duration),
+                    "duration_formatted": format_duration(duration) if duration else "Unknown",
                     "thumbnail": data.get("thumbnail") or (data.get("thumbnails")[-1].get("url") if data.get("thumbnails") else ""),
                     "view_count": data.get("view_count", 0),
                     "upload_date": data.get("upload_date", ""),
@@ -285,6 +302,37 @@ class Scanner:
             self.last_query_error = str(e)[:300]
             self.logger.warning(f"⚠️ Could not fetch video info for {video_url}: {e}")
         return None
+
+    def _probe_duration(self, data: Dict[str, Any]) -> int:
+        """Best-effort duration via ffprobe for extractors that omit it (e.g. Instagram)."""
+        formats = data.get("requested_formats") or data.get("formats") or []
+        stream_url = ""
+        for fmt in formats:
+            if fmt.get("vcodec") not in (None, "none") and fmt.get("url"):
+                stream_url = fmt["url"]
+                break
+        if not stream_url:
+            for fmt in formats:
+                if fmt.get("url"):
+                    stream_url = fmt["url"]
+                    break
+        if not stream_url:
+            return 0
+        try:
+            result = subprocess.run(
+                [
+                    "ffprobe", "-v", "error",
+                    "-show_entries", "format=duration",
+                    "-of", "default=noprint_wrappers=1:nokey=1",
+                    stream_url,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=min(self.config.query_timeout, 30),
+            )
+            return int(round(float((result.stdout or "").strip())))
+        except (ValueError, OSError, subprocess.TimeoutExpired):
+            return 0
 
     def get_playlist_info(self, playlist_url: str) -> Optional[Dict[str, Any]]:
         """Get playlist title, uploader, and video count."""
