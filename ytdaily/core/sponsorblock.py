@@ -37,6 +37,8 @@ def build_video_download_command(
 
     if is_youtube_url(video_url):
         cmd.extend(["--sponsorblock-remove", SPONSORBLOCK_CATEGORIES])
+    else:
+        cmd.extend(["--parse-metadata", r"description:(?P<title>[^\n]+)", "--trim-filenames", "120"])
 
     cmd.extend([
         "--embed-chapters",
@@ -103,6 +105,9 @@ def build_audio_download_command(
         "--socket-timeout", "30",
     ]
 
+    if not is_youtube_url(video_url):
+        cmd.extend(["--parse-metadata", r"description:(?P<title>[^\n]+)", "--trim-filenames", "120"])
+
     if resume:
         cmd.append("--continue")
     else:
@@ -149,6 +154,8 @@ def build_playlist_download_command(
             "--file-access-retries", "5",
             "--socket-timeout", "30",
         ]
+        if not is_youtube_url(playlist_url):
+            cmd.extend(["--parse-metadata", r"description:(?P<title>[^\n]+)", "--trim-filenames", "120"])
     else:
         playlist_dir = config.current_playlist_dir / safe_name
         output_template = str(playlist_dir / "%(title)s.%(ext)s")
@@ -164,6 +171,8 @@ def build_playlist_download_command(
         ]
         if is_youtube_url(playlist_url):
             cmd.extend(["--sponsorblock-remove", SPONSORBLOCK_CATEGORIES])
+        else:
+            cmd.extend(["--parse-metadata", r"description:(?P<title>[^\n]+)", "--trim-filenames", "120"])
         cmd.extend([
             "--embed-metadata",
             "--embed-chapters",
