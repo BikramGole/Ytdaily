@@ -292,6 +292,7 @@ class Downloader:
                 progress_callback=progress_callback,
                 cancel_event=cancel_event,
                 show_console=show_console,
+                timeout=self.config.download_timeout,
             )
 
         success, vid_id, error_msg = run_attempt(skip_subs=not has_subtitles, do_resume=resume)
@@ -340,6 +341,7 @@ class Downloader:
         progress_callback: Optional[ProgressCallback] = None,
         cancel_event: Optional[threading.Event] = None,
         show_console: bool = True,
+        timeout: Optional[int] = None,
     ) -> Tuple[bool, str, str]:
         """Execute download command with Rich progress display (no raw ANSI codes)."""
         video_id = video_info["id"]
@@ -370,7 +372,7 @@ class Downloader:
             )
 
             stderr_lines = []
-            lines = self._read_process_output(process, cancel_event)
+            lines = self._read_process_output(process, cancel_event, timeout=timeout)
             for stream_name, line in lines:
                 if stream_name == "stderr":
                     stderr_lines.append(line)
@@ -435,12 +437,18 @@ class Downloader:
         self,
         process: subprocess.Popen,
         cancel_event: Optional[threading.Event] = None,
+        timeout: Optional[int] = None,
     ) -> Iterator[Tuple[str, str]]:
         """Read stdout/stderr concurrently on Linux and Windows.
 
         Windows ``select`` only accepts sockets, not subprocess pipes. Dedicated
         reader threads work on both platforms and also drain the error stream so
         a noisy downloader cannot deadlock.
+
+        ``timeout`` (seconds) kills the process after it has been running that
+        long. ``None`` disables the kill — used by playlist downloads, whose
+        total runtime legitimately exceeds the per-video timeout and is instead
+        bounded by yt-dlp's own socket timeouts and retry limits.
         """
         output: "queue.Queue[Tuple[str, str]]" = queue.Queue()
 
@@ -464,7 +472,7 @@ class Downloader:
             if cancel_event is not None and cancel_event.is_set() and not terminated:
                 process.terminate()
                 terminated = True
-            elif time.monotonic() - started_at > self.config.download_timeout and not terminated:
+            elif timeout is not None and time.monotonic() - started_at > timeout and not terminated:
                 process.terminate()
                 terminated = True
             try:
@@ -578,7 +586,11 @@ class Downloader:
                     eta="",
                 )
 
-            for _, line in self._read_process_output(process, cancel_event):
+            # No global kill: a full playlist easily runs longer than the
+            # per-video download_timeout, and terminating it mid-run silently
+            # drops every remaining entry (only yt-dlp's socket timeouts and
+            # retry limits bound each item).
+            for _, line in self._read_process_output(process, cancel_event, timeout=None):
                 p = self.parse_progress(line)
                 if not p:
                     continue
