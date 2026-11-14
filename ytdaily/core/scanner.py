@@ -92,6 +92,20 @@ class Scanner:
         )
         return any(marker in lowered for marker in markers)
 
+    @staticmethod
+    def _youtube_tab_args(url: str) -> List[str]:
+        """Skip the youtube:tab auth pre-check for YouTube URLs.
+
+        YouTube intermittently serves bot-check/login pages instead of the
+        playlist webpage, which makes yt-dlp abort public playlist queries with
+        'Playlists that require authentication may not extract correctly...'.
+        Passing ``youtubetab:skip=authcheck`` skips that pre-check so public
+        playlists still extract.
+        """
+        if re.search(r'(?:youtube\.com|youtu\.be)', url, re.IGNORECASE):
+            return ["--extractor-args", "youtubetab:skip=authcheck"]
+        return []
+
     def get_all_recent_videos(
         self,
         url: str,
@@ -110,6 +124,7 @@ class Scanner:
                     "--no-warnings",
                         *self.config.get_cookie_args_for_url(url),
                         *self.config.get_network_args(),
+                        *self._youtube_tab_args(url),
                         url,
                 ]
                 if max_videos is not None:
@@ -207,6 +222,7 @@ class Scanner:
                         "--no-warnings",
                         *self.config.get_cookie_args_for_url(url),
                             *self.config.get_network_args(),
+                            *self._youtube_tab_args(url),
                     ]
                     result = self._run_yt_dlp(
                         cmd,
@@ -347,6 +363,7 @@ class Scanner:
                 "--no-warnings",
                 *self.config.get_cookie_args_for_url(playlist_url),
                 *self.config.get_network_args(),
+                *self._youtube_tab_args(playlist_url),
                 playlist_url,
             ]
             result = self._run_yt_dlp(
@@ -373,6 +390,7 @@ class Scanner:
                     "--no-warnings",
                     *self.config.get_cookie_args_for_url(playlist_url),
                     *self.config.get_network_args(),
+                    *self._youtube_tab_args(playlist_url),
                     playlist_url,
                 ]
                 result = self._run_yt_dlp(
