@@ -65,7 +65,7 @@ class YtdailyApp:
         self.config.current_podcast_dir.mkdir(parents=True, exist_ok=True)
 
     def update_directory_names(self) -> None:
-        """Update YT_feed and playlist directories with calculated media duration."""
+        """Update YT_feed, playlist, and audio-playlist directories with calculated media duration."""
         console.print(Rule("[bold magenta]Calculating Media Durations[/bold magenta]"))
         console.print("")
 
@@ -90,6 +90,21 @@ class YtdailyApp:
                         )
                         if item_sec > 0:
                             playlist_node.add(f"📚 {new_p_dir.name}")
+
+            # Audio playlist downloads live under the podcast dir (e.g.
+            # Music/YT_podcasts/<playlist name>); give them the same
+            # duration-suffixed names as video playlists.
+            current_podcast_dir = self.config.current_podcast_dir
+            if current_podcast_dir.exists():
+                pod_seconds, pod_dur, _ = calculate_directory_duration(current_podcast_dir, self.config.duration_cache)
+                if pod_seconds > 0:
+                    podcast_node = tree.add(f"🎧 [green]YT_podcasts (combined) - {pod_dur}[/green]")
+                    for pod_dir in [d for d in current_podcast_dir.iterdir() if d.is_dir()]:
+                        new_pod_dir, pod_item_sec, pod_item_dur = rename_directory_with_duration(
+                            pod_dir, pod_dir.name, self.config.duration_cache
+                        )
+                        if pod_item_sec > 0:
+                            podcast_node.add(f"🎧 {new_pod_dir.name}")
 
         console.print(tree)
         console.print("")
