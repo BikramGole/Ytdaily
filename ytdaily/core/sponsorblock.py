@@ -9,6 +9,66 @@ from ytdaily.config import Config
 
 SPONSORBLOCK_CATEGORIES = "sponsor,intro,outro,selfpromo,preview,interaction"
 
+# Emoji, variation selectors, ZWJ, keycaps, and misc-symbol blocks that only
+# decorate titles; stripped from filenames via --replace-in-metadata.
+EMOJI_PATTERN = (
+    "[\u2300-\u23FF\u2600-\u27BF\u2B00-\u2BFF\U0001F000-\U0001FAFF\uFE0F\u200D\u20E3]"
+)
+
+# Bases of the Mathematical Alphanumeric Symbols sub-blocks (bold, italic,
+# fraktur, sans, monospace, ... styles of A-Z, a-z, and 0-9). Each such char
+# costs 3-4 UTF-8 bytes, so long styled titles overflow the 255-byte
+# filesystem filename limit (ERROR: [Errno 36] File name too long) before
+# yt-dlp's char-counting --trim-filenames can help. Transliterating them to
+# ASCII keeps the full title readable and byte-safe.
+_MATH_LATIN_BASES = [
+    0x1D400, 0x1D434, 0x1D468, 0x1D49C, 0x1D4D0, 0x1D504, 0x1D538,
+    0x1D56C, 0x1D5A0, 0x1D5D4, 0x1D608, 0x1D63C, 0x1D670,
+]
+_MATH_DIGIT_BASES = [0x1D7CE, 0x1D7D8, 0x1D7E2, 0x1D7EC, 0x1D7F6]
+
+
+def _trim_file_name_limit(output_dir: Path) -> int:
+    """--trim-filenames value that cannot overflow the 255-byte name cap.
+
+    yt-dlp trims the rendered filename's no-extension part -- which includes
+    the output directory -- to that many characters, so the limit must leave
+    room for the directory. Characters surviving the transliteration and emoji
+    stripping (fullwidth punctuation, CJK, ...) still cost up to 3 UTF-8 bytes
+    each, so budget 3 bytes per title character plus room for extension and
+    suffixes.
+    """
+    dir_str = str(output_dir)
+    dir_bytes = len(dir_str.encode())
+    stem_chars = max((255 - dir_bytes - 9) // 3, 20)
+    return min(len(dir_str) + stem_chars, 240)
+
+
+def _filename_safety_args(url: str, output_dir: Path) -> List[str]:
+    """yt-dlp args that keep output filenames short and readable for YouTube.
+
+    - Transliterate Mathematical Alphanumeric Symbols to ASCII letters/digits.
+    - Strip emoji and variation selectors (decorative, 3-4 bytes each).
+    - Trim overly long titles as a backstop, sized against the output
+      directory so yt-dlp's char-counting trim cannot overflow the 255-byte
+      filesystem filename limit (ERROR: [Errno 36] File name too long).
+
+    Non-YouTube URLs get their own naming rules and are skipped.
+    """
+    if not is_youtube_url(url):
+        return []
+
+    args: List[str] = ["--trim-filenames", str(_trim_file_name_limit(output_dir))]
+    for base in _MATH_LATIN_BASES:
+        for i in range(26):
+            args += ["--replace-in-metadata", "title", chr(base + i), chr(ord("A") + i)]
+            args += ["--replace-in-metadata", "title", chr(base + 26 + i), chr(ord("a") + i)]
+    for base in _MATH_DIGIT_BASES:
+        for i in range(10):
+            args += ["--replace-in-metadata", "title", chr(base + i), chr(ord("0") + i)]
+    args += ["--replace-in-metadata", "title", EMOJI_PATTERN, ""]
+    return args
+
 
 def is_youtube_url(url: str) -> bool:
     """Check if a URL belongs to YouTube."""
@@ -37,8 +97,10 @@ def build_video_download_command(
 
     if is_youtube_url(video_url):
         cmd.extend(["--sponsorblock-remove", SPONSORBLOCK_CATEGORIES])
+        cmd.extend(_filename_safety_args(video_url, output_dir))
     else:
-        cmd.extend(["--parse-metadata", r"description:(?P<title>[^\n]+)", "--trim-filenames", "120"])
+        cmd.extend(["--parse-metadata", r"description:(?P<title>[^\n]+)",
+                    "--trim-filenames", str(_trim_file_name_limit(output_dir))])
 
     cmd.extend([
         "--embed-chapters",
@@ -106,7 +168,10 @@ def build_audio_download_command(
     ]
 
     if not is_youtube_url(video_url):
-        cmd.extend(["--parse-metadata", r"description:(?P<title>[^\n]+)", "--trim-filenames", "120"])
+        cmd.extend(["--parse-metadata", r"description:(?P<title>[^\n]+)",
+                    "--trim-filenames", str(_trim_file_name_limit(output_dir))])
+    else:
+        cmd.extend(_filename_safety_args(video_url, output_dir))
 
     if resume:
         cmd.append("--continue")
@@ -155,7 +220,10 @@ def build_playlist_download_command(
             "--socket-timeout", "30",
         ]
         if not is_youtube_url(playlist_url):
-            cmd.extend(["--parse-metadata", r"description:(?P<title>[^\n]+)", "--trim-filenames", "120"])
+            cmd.extend(["--parse-metadata", r"description:(?P<title>[^\n]+)",
+                        "--trim-filenames", str(_trim_file_name_limit(playlist_dir))])
+        else:
+            cmd.extend(_filename_safety_args(playlist_url, playlist_dir))
     else:
         playlist_dir = config.current_playlist_dir / safe_name
         output_template = str(playlist_dir / "%(title)s.%(ext)s")
@@ -171,8 +239,10 @@ def build_playlist_download_command(
         ]
         if is_youtube_url(playlist_url):
             cmd.extend(["--sponsorblock-remove", SPONSORBLOCK_CATEGORIES])
+            cmd.extend(_filename_safety_args(playlist_url, playlist_dir))
         else:
-            cmd.extend(["--parse-metadata", r"description:(?P<title>[^\n]+)", "--trim-filenames", "120"])
+            cmd.extend(["--parse-metadata", r"description:(?P<title>[^\n]+)",
+                        "--trim-filenames", str(_trim_file_name_limit(playlist_dir))])
         cmd.extend([
             "--embed-metadata",
             "--embed-chapters",
