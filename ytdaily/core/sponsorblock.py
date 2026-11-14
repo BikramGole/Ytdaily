@@ -187,6 +187,12 @@ def build_playlist_download_command(
             "--socket-timeout", "30",
         ])
 
+    # YouTube tab extraction can abort when YouTube serves a bot-check page
+    # instead of the playlist webpage; skipping the auth pre-check keeps
+    # public playlist downloads working.
+    if is_youtube_url(playlist_url):
+        cmd.extend(["--extractor-args", "youtubetab:skip=authcheck"])
+
     if resume:
         cmd.append("--continue")
     else:
